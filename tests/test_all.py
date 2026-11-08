@@ -708,6 +708,51 @@ class TestAutostart(unittest.TestCase):
         self.assertIn("startswith(\"/\")", trecho)
 
 
+class TestPublicacao(unittest.TestCase):
+    """Releases desatualizadas já aconteceram: o .deb do GitHub ficou para trás
+    porque a atualização era manual."""
+
+    def test_workflow_de_release_existe(self):
+        wf = ROOT / ".github" / "workflows" / "release.yml"
+        self.assertTrue(wf.is_file())
+
+    def test_release_dispara_em_tag(self):
+        src = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn('tags:', src)
+        self.assertIn('"v*"', src)
+        self.assertIn("generate_release_notes", src)
+
+    def test_script_de_publicacao_existe(self):
+        script = ROOT / "packaging" / "publish-release.sh"
+        self.assertTrue(script.is_file())
+        import os
+        self.assertTrue(os.access(script, os.X_OK))
+
+    def test_script_publica_nos_dois(self):
+        src = (ROOT / "packaging" / "publish-release.sh").read_text(encoding="utf-8")
+        self.assertIn("publicar_gitea", src)
+        self.assertIn("publicar_github", src)
+        self.assertIn("gitea.rdepaiva.ca", src)
+        self.assertIn("api.github.com", src)
+
+    def test_script_constroi_a_partir_da_tag(self):
+        """Se construir do working tree, a release pode não bater com a tag."""
+        src = (ROOT / "packaging" / "publish-release.sh").read_text(encoding="utf-8")
+        self.assertIn('git archive', src)
+        self.assertIn('"$TAG"', src)
+
+    def test_nao_tem_sigpipe_por_grep_q_em_pipe(self):
+        """'cmd | grep -q' fecha o pipe: o cmd recebe SIGPIPE e 'set -e' aborta."""
+        for arquivo in ("packaging/publish-release.sh", "packaging/build-deb.sh"):
+            src = (ROOT / arquivo).read_text(encoding="utf-8")
+            for linha in src.splitlines():
+                if linha.lstrip().startswith("#"):
+                    continue          # comentários podem citar o problema
+                if "grep -q" in linha and "|" in linha:
+                    self.assertNotIn("dpkg-deb", linha,
+                                     f"{arquivo}: SIGPIPE em '{linha.strip()}'")
+
+
 class TestPacoteDeb(unittest.TestCase):
     """O .deb instala no sistema (/usr), diferente do install.sh (~/.local)."""
 

@@ -1,0 +1,79 @@
+name: Release
+
+# Publica uma release quando uma tag de versão é empurrada (v1.0.0, v1.1.0…).
+#
+# O pacote .deb e o tarball são construídos AQUI, a partir da tag — não são
+# anexados à mão. Assim a release nunca fica diferente do código.
+#
+# Uso:
+#   git tag -a v1.0.1 -m "ClipB-Paste 1.0.1"
+#   git pushall                       # código + tag
+#   ./packaging/publish-release.sh    # cria/atualiza release nos dois (local)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ex.: v1.0.0)"
+        required: true
+
+permissions:
+  contents: write      # necessário para criar a release
+
+jobs:
+  release:
+    name: Publicar release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # precisa do histórico para pegar as notas
+
+      - name: Definir a versão
+        id: versao
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "versao=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Publicando $TAG"
+
+      - name: Instalar ferramentas de empacotamento
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential fakeroot dpkg-dev
+
+      - name: Construir o .deb
+        run: ./packaging/build-deb.sh
+
+      - name: Gerar o tarball do código
+        run: |
+          mkdir -p dist
+          git archive --prefix=ClipB-Paste/ "${{ steps.versao.outputs.tag }}" \
+            -o dist/clipb-paste-${{ steps.versao.outputs.versao }}.tar.gz
+
+      - name: Instalar e testar o pacote
+        # Garante que o pacote da release realmente funciona.
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          clipb-paste --version
+          clipb-paste doctor || true    # doctor pode reclamar de backend; não falha
+
+      - name: Publicar a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versao.outputs.tag }}
+          name: ClipB-Paste ${{ steps.versao.outputs.versao }}
+          generate_release_notes: true
+          files: |
+            dist/*.deb
+            dist/*.tar.gz
+          fail_on_unmatched_files: true

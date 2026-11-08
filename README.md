@@ -105,6 +105,27 @@ clipb-paste autostart --disable    # desativa (mesmo com o .deb instalado)
 > da sessão gráfica existir, sem `WAYLAND_DISPLAY` nem o barramento D-Bus do
 > usuário — o app não teria onde desenhar o ícone da bandeja.
 
+### Publicar uma release
+
+O **GitHub Actions** constrói e publica sozinho quando uma tag `v*` é empurrada:
+
+```bash
+git tag -a v1.1.0 -m "ClipB-Paste 1.1.0"
+git pushall                              # código + tag
+```
+
+O **Gitea** deste servidor não tem runners, então as actions de lá não executam.
+Use o script, que publica nos dois e garante que os anexos batem com a tag:
+
+```bash
+./packaging/publish-release.sh           # publica a versão atual
+./packaging/publish-release.sh v1.1.0    # ou uma tag específica
+./packaging/publish-release.sh --check   # só mostra o que já existe
+```
+
+O script constrói o `.deb` **a partir da tag** (não do diretório de trabalho), o
+que evita publicar uma release que não corresponde ao código marcado.
+
 ### Atualizar
 
 ```bash
