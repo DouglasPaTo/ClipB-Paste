@@ -9,6 +9,52 @@ da bandeja. O texto é digitado tecla por tecla.
 
 ---
 
+## Compatibilidade — o que foi testado e o que não
+
+Este projeto foi desenvolvido e testado **em uma máquina específica**:
+
+| Item | Ambiente testado |
+|---|---|
+| Distribuição | TUXEDO OS 24.04 (base Ubuntu 24.04) |
+| Desktop | KDE Plasma 6.6.6 / KWin 6.6.6 |
+| Sessão | Wayland |
+| Teclado | ABNT2 brasileiro (`br`) |
+| Python | 3.12 |
+
+### O que deve funcionar em outros lugares
+
+Essas partes usam interfaces padronizadas e não dependem desta máquina:
+
+- **D-Bus com o KWin** — `org.kde.KWin.Scripting`, API pública do compositor
+- **Bandeja** — StatusNotifierItem e dbusmenu, protocolos freedesktop usados por
+  todo aplicativo de bandeja
+- **Clipboard** — `wl-paste`, protocolo Wayland
+- **Digitação** — `/dev/uinput`, API do kernel, idêntica em qualquer Linux
+- **Interface** — GTK4
+
+As funções do KWin usadas no script (`workspace.windowAt`, `stackingOrder`,
+`raiseWindow`, `callDBus`, `readConfig`) existem desde o KWin 5.x.
+
+### O que é específico desta máquina
+
+1. **Mapa de teclas do ABNT2.** Os keycodes foram **medidos** neste teclado.
+   Outros layouts (`us`, `de`, `fr`…) têm posições diferentes: o app detecta o
+   layout e, quando **não** é `br`, digita só ASCII e **avisa** que acentos foram
+   perdidos. Não há mapa para outros layouts ainda.
+2. **Dead keys do `br`** para acentuação. Em `us` puro, acentos são pulados.
+3. **KWin 6.6.6.** Algumas descobertas mudaram entre versões (por exemplo,
+   `registerPointerFilter` não existe nesta). Versões muito diferentes podem
+   precisar de ajustes — o script é pequeno e o `clickpaste.js` é fácil de adaptar.
+4. **Plasma 6.** Não testado no Plasma 5.
+5. **Wayland.** Sessão X11 não é suportada.
+
+### Para outros layouts de teclado
+
+O caminho mais curto para suportar outro layout é usar o **ydotool** de uma versão
+nova (que consulta o XKB) ou adicionar um mapa de keycodes para o layout em
+`scripts/uinput-type.c`. A função `active_layout()` já detecta qual layout está
+ativo, então a estrutura para escolher o mapa certo já existe.
+
 ## Requisitos
 
 - KDE Plasma 6 com KWin (testado no 6.6.6 / Wayland)
