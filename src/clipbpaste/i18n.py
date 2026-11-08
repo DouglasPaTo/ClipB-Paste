@@ -109,6 +109,26 @@ STRINGS: dict[str, dict[str, str]] = {
     "tray.menu.settings": {"pt_BR": "Configurações…", "en": "Settings…"},
     "tray.menu.quit": {"pt_BR": "Sair do ClipB-Paste", "en": "Quit ClipB-Paste"},
 
+    # --- dica: como abortar a digitação ---
+    "hint.abort.title": {
+        "pt_BR": "Você pode parar a qualquer momento",
+        "en": "You can stop at any time",
+    },
+    "hint.abort.body": {
+        "pt_BR": "Este texto é longo e será digitado tecla por tecla.\n\n"
+                 "Para PARAR no meio: basta clicar no ícone do ClipB-Paste na "
+                 "bandeja. Ele está piscando em verde e vermelho enquanto digita.",
+        "en": "This text is long and will be typed key by key.\n\n"
+              "To STOP midway: just click the ClipB-Paste tray icon. It blinks "
+              "between green and red while typing.",
+    },
+    "hint.abort.dont_show": {
+        "pt_BR": "Não mostrar novamente",
+        "en": "Don't show this again",
+    },
+    "hint.abort.continue": {"pt_BR": "Entendi", "en": "Got it"},
+    "hint.abort.cancel": {"pt_BR": "Cancelar", "en": "Cancel"},
+
     # --- mensagens do daemon ---
     "error.no_backend.title": {
         "pt_BR": "Nenhum backend de digitação disponível",

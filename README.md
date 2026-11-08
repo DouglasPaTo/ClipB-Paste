@@ -99,6 +99,20 @@ clipb-paste settings          # abre as configurações
 - **Clique direito** → menu: *Parar digitação*, *Configurações…*, *Sair*
 - **Tooltip** → *"Clique para digitar na janela ativa"* / *"digitando… (clique para parar)"*
 
+### O ícone durante a digitação
+
+Enquanto digita, o ícone **pisca entre verde e vermelho** (a cada 600 ms), para o
+estado ser visível de longe — especialmente útil quando o texto é longo ou caiu na
+janela errada.
+
+Isso funciona trocando o `IconName` e emitindo `NewIcon` em sequência: o protocolo
+StatusNotifierItem não tem campo de animação, então a "animação" é o Plasma
+redesenhando a cada troca.
+
+**Primeira vez com texto longo:** aparece um aviso explicando que dá para parar
+clicando no ícone, com a opção *"Não mostrar novamente"* (fica salva na
+configuração).
+
 ### Parar uma digitação
 
 Se colou o texto errado ou é longo demais, há três formas de parar:
@@ -329,7 +343,9 @@ tests/test_all.py                 45 testes
 | `confirm` | false | pedir confirmação |
 | `confirm_over` | 100 | a partir de quantos caracteres |
 | `backend` | `auto` | método de digitação |
-| `language` | `pt_BR` | idioma da interface |
+| `language` | `en` | idioma da interface |
+| `show_abort_hint` | true | exibir a dica de como parar (primeira vez) |
+| `abort_hint_over` | 500 | a partir de quantos caracteres mostrar a dica |
 
 Logs em `~/.local/state/clipb-paste/clipb-paste.log`.
 

@@ -36,6 +36,7 @@ class Daemon:
         self._host = None
         self._bridge: kwin.KWinBridge | None = None
         self._picking = False
+        self._settings_open = False
 
     # ---------------------------------------------------------------- ciclo
     def run(self) -> int:
@@ -139,6 +140,11 @@ class Daemon:
 
     def start_typing(self) -> None:
         """Lê o clipboard e digita na janela alvo."""
+        # Com a janela de configurações aberta, um clique no ícone colocaria
+        # texto nos campos de ajuste (aconteceu: caiu tudo no "atraso de teclas").
+        if self._settings_open:
+            log.info("configurações abertas — digitação ignorada")
+            return
         if self.typer is None:
             self._notify_error(tr("error.no_backend.title"), tr("error.no_backend.body"))
             return
@@ -173,6 +179,19 @@ class Daemon:
                 _tr("error.unicode.title", backend=self.typer.backend_name),
                 _tr("error.unicode.body", chars=faltando),
             )
+
+        # Primeira vez com texto longo: explica que dá para abortar clicando no
+        # ícone. Some de vez quando o usuário marca "não mostrar novamente".
+        if self.cfg.show_abort_hint and len(text) > self.cfg.abort_hint_over:
+            try:
+                from . import ui
+
+                if not ui.mostrar_dica_abortar():
+                    log.info("digitação cancelada pelo usuário na dica")
+                    return
+                self.cfg.show_abort_hint = config.Config.load().show_abort_hint
+            except Exception as exc:
+                log.debug("dica de abortar indisponível: %s", exc)
 
         if self.cfg.confirm and len(text) > self.cfg.confirm_over:
             target = self._target_description()
@@ -270,7 +289,16 @@ class Daemon:
     def open_settings(self) -> None:
         from . import ui
 
-        ui.run_settings(self.cfg, on_saved=self._reload_settings)
+        if self._settings_open:
+            return
+        self._settings_open = True
+        if self.typer is not None and self.typer.running:
+            self.typer.cancel()      # não digitar em cima da própria janela
+        try:
+            ui.run_settings(self.cfg, on_saved=self._reload_settings)
+        finally:
+            self._settings_open = False
+            self.cfg = config.Config.load()   # recarrega o que foi salvo
 
     def _reload_settings(self) -> None:
         """Reaplica o que a janela de configurações pode ter mudado.

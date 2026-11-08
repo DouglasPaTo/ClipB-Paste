@@ -61,6 +61,10 @@ class Config:
     # --- idioma da interface: pt_BR | en ---
     language: str = "en"
 
+    # --- aviso "como abortar" na primeira vez com texto longo ---
+    show_abort_hint: bool = True     # desmarcado = não mostrar de novo
+    abort_hint_over: int = 500       # a partir de quantos caracteres avisar
+
     # --- janela de seleção ---
     crosshair: bool = True
 

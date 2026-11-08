@@ -280,3 +280,77 @@ def confirm_typing(count: int, target: str) -> bool:
     dialog.choose(None, None, on_choice)
     loop.run()
     return holder.get("choice", 0) == 1
+
+def mostrar_dica_abortar() -> bool:
+    """Aviso único explicando como parar a digitação.
+
+    Aparece na primeira vez que um texto longo é digitado. Tem a caixa
+    "Não mostrar novamente", que fica salva na configuração.
+
+    Retorna True se o usuário quer continuar digitando.
+    """
+    Gtk = _gi()
+    cfg = Config.load()
+
+    dialog = Gtk.AlertDialog()
+    dialog.set_message(tr("hint.abort.title"))
+    dialog.set_detail(tr("hint.abort.body"))
+    dialog.set_buttons([tr("hint.abort.cancel"), tr("hint.abort.continue")])
+    dialog.set_cancel_button(0)
+    dialog.set_default_button(1)
+
+    # AlertDialog não tem checkbox; usamos uma janela própria para permitir
+    # a opção "não mostrar novamente".
+    window = Gtk.Window()
+    window.set_title(tr("hint.abort.title"))
+    window.set_default_size(520, 250)
+    window.set_modal(False)
+
+    caixa = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+    caixa.set_margin_top(20); caixa.set_margin_bottom(20)
+    caixa.set_margin_start(20); caixa.set_margin_end(20)
+    window.set_child(caixa)
+
+    titulo = Gtk.Label(xalign=0, wrap=True)
+    titulo.set_markup(f"<b>{tr('hint.abort.title')}</b>")
+    titulo.add_css_class("title")
+    caixa.append(titulo)
+
+    corpo = Gtk.Label(label=tr("hint.abort.body"), xalign=0, wrap=True)
+    caixa.append(corpo)
+
+    nao_mostrar = Gtk.CheckButton(label=tr("hint.abort.dont_show"))
+    caixa.append(nao_mostrar)
+
+    botoes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    botoes.set_halign(Gtk.Align.END)
+    continuar = Gtk.Button(label=tr("hint.abort.continue"))
+    continuar.add_css_class("suggested-action")
+
+    resultado = {"continuar": True}
+
+    def fechar(vai_continuar: bool) -> None:
+        resultado["continuar"] = vai_continuar
+        if nao_mostrar.get_active():
+            cfg2 = Config.load()
+            cfg2.show_abort_hint = False
+            cfg2.save()
+        window.close()
+
+    continuar.connect("clicked", lambda *_: fechar(True))
+    botoes.append(continuar)
+    caixa.append(botoes)
+
+    def on_close(*_):
+        pass
+    window.connect("close-request", lambda *_: (fechar(True), False)[1])
+
+    app = Gtk.Application(application_id="org.clipbpaste.Linux.Hint")
+
+    def on_activate(application):
+        application.add_window(window)
+        window.present()
+
+    app.connect("activate", on_activate)
+    app.run([])
+    return resultado["continuar"]

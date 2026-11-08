@@ -152,16 +152,17 @@ install_icons() {
     [[ -f "$src/clipb-paste-32.png" ]] || { warn "ícones não encontrados em $src"; return 1; }
     for size in 16 22 24 32 48 64 128; do
         mkdir -p "$ICON_DIR/${size}x${size}/apps"
-        for variante in "" "-light"; do
+        # variantes: padrão, claro (tema claro), digitando (verde), alerta (vermelho)
+        for variante in "" "-light" "-typing" "-alert"; do
             local f="$src/clipb-paste${variante}-${size}.png"
             [[ -f "$f" ]] || f="$src/clipb-paste${variante}-32.png"
+            [[ -f "$f" ]] || continue
             cp -f "$f" "$ICON_DIR/${size}x${size}/apps/clipb-paste${variante}.png"
         done
-        cp -f "$src/clipb-paste-32.png" "$ICON_DIR/${size}x${size}/apps/clipb-paste-typing.png"
     done
     command -v gtk-update-icon-cache >/dev/null \
         && gtk-update-icon-cache -f -t "$ICON_DIR" >/dev/null 2>&1 || true
-    green "ícones instalados"
+    green "ícones instalados (padrão, claro, digitando, alerta)"
 }
 
 # ---------------------------------------------------------------- executar

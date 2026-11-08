@@ -583,6 +583,49 @@ class TestInstalador(unittest.TestCase):
         self.assertIn("X-GNOME-Autostart-enabled=true", self.FONTE)
 
 
+class TestFeedbackVisual(unittest.TestCase):
+    """O ícone precisa mostrar que está digitando, e o usuário precisa saber
+    que pode parar."""
+
+    TRAY = (ROOT / "src" / "clipbpaste" / "tray.py").read_text(encoding="utf-8")
+    DAEMON = (ROOT / "src" / "clipbpaste" / "daemon.py").read_text(encoding="utf-8")
+
+    def test_icone_pisca_ao_digitar(self):
+        self.assertIn("_iniciar_pisca", self.TRAY)
+        self.assertIn("_parar_pisca", self.TRAY)
+        # alterna entre verde e vermelho
+        self.assertIn('"blinking"', self.TRAY)
+        self.assertIn("clipb-paste-alert", self.TRAY)
+
+    def test_pisca_para_ao_terminar(self):
+        """O timer não pode continuar rodando depois da digitação."""
+        self.assertIn('state != "typing"', self.TRAY)
+        self.assertIn("GLib.source_remove", self.TRAY)
+
+    def test_dica_de_abortar_na_primeira_vez(self):
+        cfg = config.Config()
+        self.assertTrue(cfg.show_abort_hint)
+        self.assertGreater(cfg.abort_hint_over, 0)
+        self.assertIn("mostrar_dica_abortar", self.DAEMON)
+
+    def test_configuracoes_bloqueiam_digitacao(self):
+        """Clicar no ícone com as configurações abertas jogava texto nos campos."""
+        self.assertIn("_settings_open", self.DAEMON)
+        self.assertIn("configurações abertas — digitação ignorada", self.DAEMON)
+
+    def test_icones_de_estado_existem(self):
+        for nome in ("clipb-paste", "clipb-paste-light", "clipb-paste-typing",
+                     "clipb-paste-alert"):
+            achou = any((ROOT / "data" / "icons" / f"{nome}-{sz}.png").is_file()
+                        for sz in (16, 32, 64))
+            self.assertTrue(achou, f"ícone {nome} não existe")
+
+    def test_install_copia_todas_as_variantes(self):
+        inst = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn('"-typing"', inst)
+        self.assertIn('"-alert"', inst)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 
@@ -618,8 +661,18 @@ class TestArtefatos(unittest.TestCase):
         trecho = src[src.index("def icon_for"):src.index("def install_icons")]
         self.assertNotIn("str(candidate)", trecho)
         self.assertNotIn(".png\"", trecho.split("return")[0])
-        self.assertIn('return "clipb-paste-typing"', trecho)
-        self.assertIn('return "clipb-paste"', trecho)
+        # os nomes vêm de ICONES_ESTADO; o que importa é não haver caminho
+        self.assertIn("ICONES_ESTADO", src)
+        self.assertIn('"clipb-paste-typing"', src)
+        self.assertIn('"clipb-paste-light"', src)
+
+    def test_pisca_durante_digitacao(self):
+        """O ícone alterna verde/vermelho enquanto digita."""
+        src = (ROOT / "src" / "clipbpaste" / "tray.py").read_text(encoding="utf-8")
+        self.assertIn("_iniciar_pisca", src)
+        self.assertIn("_piscar", src)
+        self.assertIn("blinking", src)
+        self.assertIn("GLib.timeout_add", src)
 
     def test_um_unico_register_object_por_caminho(self):
         """GDBus apaga o registro anterior se o mesmo caminho for registrado de novo.

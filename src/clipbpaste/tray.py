@@ -64,6 +64,14 @@ def _system_uses_dark_tray() -> bool:
     return True  # o Plasma moderno usa tema escuro por padrão
 
 
+# Rótulos dos ícones de estado (o Plasma resolve por nome no tema).
+ICONES_ESTADO = {
+    "idle": ("clipb-paste", "clipb-paste-light"),
+    "typing": ("clipb-paste-typing", "clipb-paste-typing"),
+    "blinking": ("clipb-paste-alert", "clipb-paste-typing"),
+}
+
+
 def icon_for(state: str) -> str:
     """Nome do ícone no tema (o Plasma resolve nomes, não caminhos de arquivo).
 
@@ -74,9 +82,8 @@ def icon_for(state: str) -> str:
     Os PNGs são instalados pelo ``scripts/install-icons.sh`` em
     ~/.local/share/icons/hicolor/<tam>/apps/.
     """
-    if state == "typing":
-        return "clipb-paste-typing"
-    return "clipb-paste" if _system_uses_dark_tray() else "clipb-paste-light"
+    indice = 0 if _system_uses_dark_tray() else 1
+    return ICONES_ESTADO.get(state, ICONES_ESTADO["idle"])[indice]
 
 
 def install_icons() -> list[str]:
@@ -235,9 +242,50 @@ class Tray:
     def set_state(self, state: str) -> None:
         if state == self._state:
             return
+        anterior = self._state
         self._state = state
         self._emit("NewIcon")
         self._emit("NewToolTip")
+
+        # Enquanto digita, o ícone PISCA (verde <-> vermelho) para o estado ser
+        # visível de longe. O protocolo StatusNotifierItem não tem animação, então
+        # alternamos IconName e emitimos NewIcon — o Plasma redesenha a cada vez.
+        if state == "typing" and anterior != "typing":
+            self._iniciar_pisca()
+        elif state != "typing":
+            self._parar_pisca()
+
+    def _iniciar_pisca(self) -> None:
+        self._parar_pisca()
+        try:
+            from gi.repository import GLib
+        except ImportError:
+            return
+        self._pisca_fase = 0
+        # 600ms: rápido o bastante para ser notado, lento o bastante para não
+        # piscar excessivamente (acessibilidade / epilepsia fotossensível).
+        self._pisca_id = GLib.timeout_add(600, self._piscar)
+
+    def _piscar(self) -> bool:
+        if self._state != "typing":
+            self._pisca_id = None
+            return False
+        self._pisca_fase = 1 - getattr(self, "_pisca_fase", 0)
+        self._icon_atual = icon_for("blinking" if self._pisca_fase else "typing")
+        self._emit("NewIcon")
+        return True
+
+    def _parar_pisca(self) -> None:
+        ident = getattr(self, "_pisca_id", None)
+        if ident is not None:
+            try:
+                from gi.repository import GLib
+
+                GLib.source_remove(ident)
+            except Exception:
+                pass
+        self._pisca_id = None
+        self._pisca_fase = 0
 
     def set_backend(self, name: str) -> None:
         self._backend_name = name
@@ -366,6 +414,12 @@ class Tray:
             log.warning("registro na bandeja falhou: %s", exc)
 
     # ---------------------------------------------------------------- item
+    def _icone(self) -> str:
+        """Ícone atual, considerando a fase da piscada."""
+        if self._state == "typing" and getattr(self, "_pisca_fase", 0):
+            return icon_for("blinking")
+        return icon_for(self._state)
+
     def _item_properties(self) -> dict[str, Any]:
         from gi.repository import GLib
 
@@ -375,7 +429,7 @@ class Tray:
             "Id": GLib.Variant("s", "clipb-paste"),
             "Title": GLib.Variant("s", "ClipB-Paste"),
             "Status": GLib.Variant("s", "Active"),
-            "IconName": GLib.Variant("s", icon_for(self._state)),
+            "IconName": GLib.Variant("s", self._icone()),
             "IconThemePath": GLib.Variant("s", str(icon_dir())),
             # False = clique ESQUERDO ativa o item (cola); clique DIREITO abre o
             # menu declarado em "Menu". Com True, o Plasma trata o esquerdo como
