@@ -707,12 +707,15 @@ class TestArtefatos(unittest.TestCase):
         self.assertIn('GLib.Variant("v"', src)
 
     def test_menu_tem_parar_configuracoes_e_sair(self):
-        """O menu é enxuto, mas "Parar digitação" é essencial: é a saída de
-        emergência quando o texto foi colado no lugar errado."""
+        """O menu é enxuto. "Parar digitação" só aparece DURANTE a digitação:
+        fora disso seria um botão sem efeito.
+
+        Ele continua existindo porque é a rede de segurança caso o clique no
+        ícone não funcione (ícone sumiu, Plasma travou)."""
         from clipbpaste import i18n
         from clipbpaste.tray import Tray
 
-        chaves = [label for _id, label, _sep, _en in Tray.ITEMS if label]
+        chaves = [item[1] for item in Tray.ITEMS if item[1]]
         self.assertEqual(chaves, ["tray.menu.stop", "tray.menu.settings", "tray.menu.quit"])
 
         i18n.set_language("pt_BR")
@@ -723,6 +726,13 @@ class TestArtefatos(unittest.TestCase):
         rotulos_en = [i18n.tr(k) for k in chaves]
         self.assertEqual(rotulos_en, ["Stop typing", "Settings…", "Quit ClipB-Paste"])
         i18n.set_language("pt_BR")
+
+        # o item "Parar" e o separador dele são condicionais ao estado
+        condicionais = [item[0] for item in Tray.ITEMS if item[4]]
+        self.assertEqual(condicionais, [2, 5])   # Parar + o separador abaixo dele
+        # Configurações e Sair NUNCA são condicionais
+        fixos = [item[1] for item in Tray.ITEMS if not item[4] and item[1]]
+        self.assertEqual(fixos, ["tray.menu.settings", "tray.menu.quit"])
 
     def test_menu_declara_propriedades(self):
         """Sem Version/Status o Plasma não monta o dbusmenu."""

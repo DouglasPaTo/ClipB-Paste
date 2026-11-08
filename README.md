@@ -155,7 +155,8 @@ clipb-paste settings          # abre as configurações
 
 - **Clique esquerdo** → digita o clipboard na janela **sob o ponteiro**
 - **Clique esquerdo durante a digitação** → **para** (colou no lugar errado? clique e parou)
-- **Clique direito** → menu: *Parar digitação*, *Configurações…*, *Sair*
+- **Clique direito** → menu: *Configurações…* e *Sair*
+  (durante a digitação aparece também *Parar digitação*, no topo)
 - **Tooltip** → *"Clique para digitar na janela ativa"* / *"digitando… (clique para parar)"*
 
 ### O ícone durante a digitação
@@ -177,8 +178,8 @@ configuração).
 Se colou o texto errado ou é longo demais, há três formas de parar:
 
 1. **Clique no ícone** da bandeja (a mais rápida)
-2. Menu → **Parar digitação**
-3. `clipb-paste` → *Parar digitação*
+2. Menu (botão direito) → **Parar digitação** — o item só aparece enquanto digita
+3. `clipb-paste --abort` no terminal
 
 O app interrompe **no meio do texto**: um texto de 280 caracteres para após os
 primeiros, não termina a sequência.

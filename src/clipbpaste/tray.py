@@ -207,12 +207,15 @@ class Tray:
     # clique esquerdo no ícone; o menu serve para configuração e saída.
     # Os rótulos são resolvidos por tr() em tempo de construção do menu, então
     # trocar o idioma nas Configurações já reflete no próximo menu aberto.
+    # (id, chave de tradução, é separador, habilitado, só_durante_digitação)
+    # O "Parar digitação" só aparece enquanto o app está digitando: fora disso
+    # ele seria um botão sem efeito ocupando espaço no menu.
     ITEMS = (
-        (2, "tray.menu.stop", False, True),
-        (5, "", True, True),
-        (4, "tray.menu.settings", False, True),
-        (6, "", True, True),
-        (7, "tray.menu.quit", False, True),
+        (2, "tray.menu.stop", False, True, True),
+        (5, "", True, True, True),
+        (4, "tray.menu.settings", False, True, False),
+        (6, "", True, True, False),
+        (7, "tray.menu.quit", False, True, False),
     )
 
     def __init__(self, daemon: "Daemon") -> None:
@@ -254,6 +257,11 @@ class Tray:
             self._iniciar_pisca()
         elif state != "typing":
             self._parar_pisca()
+
+        # O menu ganha/perde o item "Parar digitação": avisa o Plasma para
+        # recarregar a árvore, senão ele mostra a versão anterior.
+        self._revision += 1
+        self._emit_layout_updated()
 
     def _iniciar_pisca(self) -> None:
         self._parar_pisca()
@@ -496,24 +504,31 @@ class Tray:
             invocation.return_value(GLib.Variant("()", ()))
 
     # ---------------------------------------------------------------- menu
-    def _props_for(self, item_id: int, label: str, separator: bool, enabled: bool):
+    def _props_for(self, item_id: int, label: str, separator: bool, enabled: bool,
+                   so_digitando: bool = False):
         from gi.repository import GLib
 
+        # O item "Parar" só é visível enquanto o app digita. Fora disso seria um
+        # botão sem efeito ocupando espaço no menu.
+        visivel = (not so_digitando) or self.daemon.typing_now
+
         if separator:
-            return {"type": GLib.Variant("s", "separator")}
+            return {"type": GLib.Variant("s", "separator"),
+                    "visible": GLib.Variant("b", visivel)}
         return {
             # `label` é a CHAVE de tradução (tray.menu.*), resolvida aqui para que
             # a troca de idioma valha no próximo menu aberto.
             "label": GLib.Variant("s", tr(label)),
             "enabled": GLib.Variant("b", enabled),
-            "visible": GLib.Variant("b", True),
+            "visible": GLib.Variant("b", visivel),
         }
 
-    def _item_struct(self, item_id: int, label: str, sep: bool, en: bool):
+    def _item_struct(self, item_id: int, label: str, sep: bool, en: bool,
+                     so_dig: bool = False):
         """Um item (ia{sv}av), montado com VariantBuilder."""
         from gi.repository import GLib
 
-        props = GLib.Variant("a{sv}", self._props_for(item_id, label, sep, en))
+        props = GLib.Variant("a{sv}", self._props_for(item_id, label, sep, en, so_dig))
         b = GLib.VariantBuilder.new(GLib.VariantType.new("(ia{sv}av)"))
         b.add_value(GLib.Variant("i", item_id))
         b.add_value(props)
@@ -525,8 +540,10 @@ class Tray:
         from gi.repository import GLib
 
         b = GLib.VariantBuilder.new(GLib.VariantType.new("a(ia{sv}av)"))
-        for item_id, label, sep, en in self.ITEMS:
-            b.add_value(self._item_struct(item_id, label, sep, en))
+        for item_id, label, sep, en, so_dig in self.ITEMS:
+            if so_dig and not self.daemon.typing_now:
+                continue          # esconde "Parar" quando não está digitando
+            b.add_value(self._item_struct(item_id, label, sep, en, so_dig))
         return b.end()
 
     def _layout_variant(self, parent_id: int):
@@ -539,8 +556,10 @@ class Tray:
             "children-display": GLib.Variant("s", "submenu"),
         }))
         av = GLib.VariantBuilder.new(GLib.VariantType.new("av"))
-        for item_id, label, sep, en in self.ITEMS:
-            av.add_value(GLib.Variant("v", self._item_struct(item_id, label, sep, en)))
+        for item_id, label, sep, en, so_dig in self.ITEMS:
+            if so_dig and not self.daemon.typing_now:
+                continue
+            av.add_value(GLib.Variant("v", self._item_struct(item_id, label, sep, en, so_dig)))
         b.add_value(av.end())
         return b.end()
 
@@ -570,10 +589,10 @@ class Tray:
                 ids = set(params.unpack()[0])
                 wanted = ids or {i for i, *_ in self.ITEMS}
                 group_builder = GLib.VariantBuilder.new(GLib.VariantType.new("a{sv}"))
-                for item_id, label, sep, en in self.ITEMS:
+                for item_id, label, sep, en, so_dig in self.ITEMS:
                     if item_id in wanted:
                         group_builder.add_value(GLib.Variant(
-                            "{sv}", {str(item_id): GLib.Variant("a{sv}", self._props_for(item_id, label, sep, en))}
+                            "{sv}", {str(item_id): GLib.Variant("a{sv}", self._props_for(item_id, label, sep, en, so_dig))}
                         ))
                 invocation.return_value(GLib.Variant.new_tuple(group_builder.end()))
             elif method == "Event":
