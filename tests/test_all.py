@@ -701,6 +701,45 @@ class TestPacoteDeb(unittest.TestCase):
         for action in parser._subparsers._group_actions:
             self.assertIn("enable-uinput", action.choices)
 
+    def test_normaliza_permissoes(self):
+        """Bug real: dpkg-deb --root-owner-group muda o dono mas NÃO as permissões.
+
+        Arquivos copiados do ~ vinham 600 (-rw-------) e o app instalado não
+        conseguia se ler: PermissionError em cli.py ao rodar como usuário comum.
+        """
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("chmod 644", src)
+        self.assertIn("chmod 755", src)
+        # deve rodar ANTES do dpkg-deb --build
+        self.assertLess(src.index("normalizando permissões"),
+                        src.index("dpkg-deb --build"))
+
+    def test_copyright_em_formato_dep5(self):
+        """Sem 'Format:' no copyright, o Discover mostra 'License: Unknown'."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("Format: https://www.debian.org/doc/packaging-manuals", src)
+        self.assertIn("License: BSD-3-clause", src)
+
+    def test_pacote_gerado_tem_arquivos_legiveis(self):
+        """Verifica o .deb de verdade, se ele existir."""
+        import subprocess
+
+        deb = sorted((ROOT / "dist").glob("clipb-paste_*_all.deb"))
+        if not deb:
+            self.skipTest("pacote não gerado")
+        saida = subprocess.run(["dpkg-deb", "--contents", str(deb[-1])],
+                               capture_output=True, text=True).stdout
+        for linha in saida.splitlines():
+            partes = linha.split()
+            if len(partes) < 6:
+                continue
+            perm, caminho = partes[0], partes[-1]
+            if caminho.endswith("/") or not caminho.startswith("./usr"):
+                continue
+            # todo arquivo precisa ser legível pelos outros (o 4º char não pode ser '-')
+            self.assertNotEqual(perm[7], "-",
+                                f"{caminho} não é legível por outros ({perm})")
+
     def test_preserva_configuracoes_ao_remover(self):
         src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
         self.assertIn("preservadas", src)

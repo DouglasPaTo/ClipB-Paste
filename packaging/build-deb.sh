@@ -108,7 +108,46 @@ EOF
 mkdir -p "$BUILD/usr/share/doc/$PKG"
 cp "$ROOT/README.md" "$BUILD/usr/share/doc/$PKG/"
 gzip -9 -n -c "$ROOT/README.md" > "$BUILD/usr/share/doc/$PKG/README.md.gz" 2>/dev/null || true
-cp "$ROOT/LICENSE" "$BUILD/usr/share/doc/$PKG/copyright" 2>/dev/null || true
+# Formato DEP-5: é o que o Discover (e o apt) leem para mostrar a licença.
+# Sem o cabeçalho "Format:", aparece "License: Unknown" no Discover.
+cat > "$BUILD/usr/share/doc/$PKG/copyright" <<'COPYRIGHT'
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: ClipB-Paste
+Upstream-Contact: DougPaTo <douglas@rdepaiva.ca>
+Source: https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste
+
+Files: *
+Copyright: 2026 Collective Software LLC
+           2026 DougPaTo
+License: BSD-3-clause
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+ .
+ 2. Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+ .
+ 3. Neither the name of the copyright holder nor the names of its contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+COPYRIGHT
 
 # ---------------------------------------------------------------- scripts
 blue "instalando scripts de manutenção"
@@ -221,6 +260,21 @@ Description: type the clipboard content as keystrokes on KDE Plasma
  After installing, run once (needs sudo):
    sudo clipb-paste enable-uinput
 EOF
+
+# ---------------------------------------------------------------- permissões
+# CRÍTICO: dpkg-deb --root-owner-group muda o dono para root mas NÃO ajusta as
+# permissões. Arquivos copiados do home vinham 600 (-rw-------) e o app não
+# conseguia se ler ao ser executado por um usuário comum.
+blue "normalizando permissões"
+find "$BUILD/usr/lib" -type f -exec chmod 644 {} +
+find "$BUILD/usr/lib" -type d -exec chmod 755 {} +
+find "$BUILD/usr/share" -type f -exec chmod 644 {} +
+find "$BUILD/usr/share" -type d -exec chmod 755 {} +
+chmod 755 "$BUILD/usr/bin/$PKG"
+[[ -f "$BUILD/usr/lib/$PKG/bin/uinput-type" ]] && chmod 755 "$BUILD/usr/lib/$PKG/bin/uinput-type"
+# scripts de manutenção precisam ser executáveis
+chmod 755 "$BUILD/DEBIAN"/postinst "$BUILD/DEBIAN"/prerm "$BUILD/DEBIAN"/postrm 2>/dev/null || true
+green "permissões normalizadas"
 
 # ---------------------------------------------------------------- build
 blue "gerando o pacote"
