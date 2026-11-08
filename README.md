@@ -1,5 +1,9 @@
 # ClipB-Paste para Linux (KDE Plasma / Wayland)
 
+[![CI](https://github.com/DouglasPaTo/ClipB-Paste/actions/workflows/ci.yml/badge.svg)](https://github.com/DouglasPaTo/ClipB-Paste/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DouglasPaTo/ClipB-Paste)](https://github.com/DouglasPaTo/ClipB-Paste/releases)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
+
 Aplicativo de bandeja que **digita o conteúdo do clipboard na janela que você
 apontar**, como se fosse teclado. Útil para colar em campos que não aceitam `Ctrl+V`
 — consoles remotos, máquinas virtuais, terminais, campos com validação.
@@ -451,6 +455,13 @@ Logs em `~/.local/state/clipb-paste/clipb-paste.log`.
 ```bash
 python3 tests/test_all.py -v    # não precisa de sessão gráfica
 ```
+
+O projeto tem **CI no GitHub Actions**: os 113 testes rodam em Python 3.10 e 3.12,
+o helper em C é compilado, o script do KWin e os scripts shell têm a sintaxe
+validada, e o `.deb` é construído — incluindo uma verificação de que todos os
+arquivos são legíveis por um usuário comum (um bug real que já aconteceu).
+
+O pacote `.deb` gerado pelo CI fica disponível como artefato em cada execução.
 
 Cobrem configuração, parsing de janelas, mapa de teclas, blocos de digitação,
 cancelamento, traduções, estrutura do menu da bandeja e integridade dos artefatos.

@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- testes
+  test:
+    name: Testes (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi python3-dbus libgirepository1.0-dev \
+            gir1.2-gtk-4.0 wl-clipboard build-essential
+
+      - name: Compilar o helper de digitação
+        run: |
+          cc -O2 -Wall -o bin/uinput-type scripts/uinput-type.c
+          echo "helper compilado: $(ls -l bin/uinput-type | awk '{print $5}') bytes"
+
+      - name: Compilar todos os módulos Python
+        run: python3 -m compileall -q src/
+
+      - name: Validar sintaxe dos scripts shell
+        run: |
+          for f in install.sh scripts/*.sh packaging/*.sh; do
+            bash -n "$f" || { echo "ERRO de sintaxe em $f"; exit 1; }
+            echo "  ok: $f"
+          done
+
+      - name: Validar o script do KWin
+        # O script roda dentro do compositor; aqui só conferimos a sintaxe.
+        run: |
+          node --check data/kwin/clipb-paste.js
+          echo "  ok: data/kwin/clipb-paste.js"
+
+      - name: Rodar os testes
+        # Sem sessão gráfica: o CI não tem KWin nem bandeja.
+        env:
+          CI: "true"
+        run: |
+          python3 tests/test_all.py -v 2>&1 | tee tests.log
+          # falha se algum teste falhou (o unittest já retorna != 0)
+
+  # ---------------------------------------------------------------- pacote
+  deb:
+    name: Gerar pacote .deb
+    runs-on: ubuntu-24.04
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar ferramentas de empacotamento
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential fakeroot dpkg-dev
+
+      - name: Construir o pacote
+        run: ./packaging/build-deb.sh
+
+      - name: Verificar o pacote
+        run: |
+          ./packaging/build-deb.sh --check
+          # o app precisa conseguir LER os próprios arquivos
+          # (bug real: rodar como usuário comum dava PermissionError)
+          dpkg-deb -x dist/*.deb /tmp/pkgtest
+          for f in $(find /tmp/pkgtest/usr -type f); do
+            if [ ! -r "$f" ]; then
+              echo "ERRO: $f não é legível para um usuário comum"
+              exit 1
+            fi
+          done
+          echo "todos os arquivos são legíveis"
+
+      - name: Instalar o pacote e testar o binário
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          clipb-paste --version
+          # --version já falhou antes por permissões; se chegar aqui, está ok
+
+      - name: Guardar o .deb como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipb-paste-deb
+          path: dist/*.deb
+          retention-days: 30
+
+# Notas:
+#  - O job "test" roda em Python 3.10 e 3.12 para pegar incompatibilidades.
+#  - O helper em C é compilado antes dos testes: sem ele, 6 testes são pulados.
+#  - O job "deb" depende dos testes passarem (needs: test).
+#  - Sem sessão gráfica, os testes que precisam de KWin/GTK são pulados
+#    automaticamente (skipTest), não falham.
