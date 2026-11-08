@@ -20,10 +20,15 @@ sudo apt install python3-gi python3-dbus wl-clipboard build-essential
 
 ## Instalação
 
-**Opção 1 — baixar a versão pronta** (sem precisar de git):
+> O repositório é **privado**: baixar o pacote ou clonar exige estar autenticado
+> no Gitea. Veja a seção [Downloads](#downloads) abaixo.
+
+**Opção 1 — baixar o pacote da release:**
 
 ```bash
-wget https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
+# autenticado: o download do anexo pede seu usuário/token
+wget --user=SEU_USUARIO --ask-password \
+  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
 tar -xzf clipb-paste-1.4.4.tar.gz
 cd ClipB-Paste && ./install.sh --autostart
 ```
@@ -365,6 +370,25 @@ python3 tests/test_all.py -v    # não precisa de sessão gráfica
 
 Cobrem configuração, parsing de janelas, mapa de teclas, blocos de digitação,
 cancelamento, traduções, estrutura do menu da bandeja e integridade dos artefatos.
+
+## Downloads
+
+As versões prontas ficam em **Releases**:
+`https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases`
+
+Cada release traz:
+- o texto com o que mudou naquela versão
+- um pacote `.tar.gz` com o código e o instalador
+
+Como o repositório é privado, para baixar o anexo é preciso estar autenticado:
+
+```bash
+# no navegador: faça login no Gitea e clique no anexo
+# no terminal:
+curl -L -H "Authorization: token SEU_TOKEN" \
+  -o clipb-paste-1.4.4.tar.gz \
+  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
+```
 
 ## Onde o programa é instalado
 
