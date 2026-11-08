@@ -452,6 +452,39 @@ class TestAvisoInteligente(unittest.TestCase):
         self.assertIn("😀", faltando or "")
 
 
+class TestInstalador(unittest.TestCase):
+    """O install.sh precisa ser seguro: não apagar configs e ter os modos certos."""
+
+    FONTE = (ROOT / "install.sh").read_text(encoding="utf-8")
+
+    def test_executavel(self):
+        import os
+        import stat
+
+        path = ROOT / "install.sh"
+        self.assertTrue(os.access(path, os.X_OK), "install.sh precisa ser executável")
+
+    def test_tem_todos_os_modos(self):
+        for flag in ("--autostart", "--uninstall", "--status", "--no-autostart",
+                     "--remove-uinput", "--help"):
+            self.assertIn(flag, self.FONTE, f"falta o modo {flag}")
+
+    def test_desinstalar_preserva_configuracoes(self):
+        # o bloco de uninstall não pode apagar ~/.config/clipb-paste
+        trecho = self.FONTE[self.FONTE.index("do_uninstall()"):]
+        trecho = trecho[:trecho.index("do_remove_uinput")]
+        self.assertNotIn('rm -rf "$HOME/.config/clipb-paste"', trecho)
+        self.assertIn("preservadas", trecho)
+
+    def test_checa_dependencias_antes(self):
+        self.assertIn("check_deps", self.FONTE)
+        self.assertIn("python3-gi", self.FONTE)
+
+    def test_autostart_usa_desktop_entry(self):
+        self.assertIn(".desktop", self.FONTE)
+        self.assertIn("X-GNOME-Autostart-enabled=true", self.FONTE)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 

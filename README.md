@@ -11,44 +11,79 @@ da bandeja. O texto é digitado tecla por tecla.
 
 ## Requisitos
 
-- KDE Plasma 6 com KWin (testado no 6.6.6, TUXEDO OS / Ubuntu 24.04)
-- Sessão Wayland
-- `python3-gi`, `python3-dbus`, `wl-clipboard`
+- KDE Plasma 6 com KWin (testado no 6.6.6 / Wayland)
+- `python3-gi`, `python3-dbus`, `wl-clipboard`, `gcc`
 
 ```bash
-sudo apt install python3-gi python3-dbus wl-clipboard
+sudo apt install python3-gi python3-dbus wl-clipboard build-essential
 ```
 
 ## Instalação
 
+Três comandos:
+
 ```bash
-cd clipb-paste-linux
-./scripts/install-icons.sh    # ícone da bandeja (sem sudo)
-./scripts/enable-uinput.sh    # habilita a digitação (pede sudo uma vez)
-./bin/clipb-paste doctor      # confere se está tudo no lugar
-./bin/clipb-paste daemon      # inicia o app
+git clone https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste.git
+cd ClipB-Paste
+./install.sh --autostart
 ```
 
-### Por que o passo com `sudo` é necessário
+Pronto. O `install.sh` cuida de tudo: dependências checadas, código instalado em
+`~/.local/share/clipb-paste/`, executável em `~/.local/bin/clipb-paste`, ícones,
+entrada no menu de aplicativos e início automático com a sessão.
+
+Depois disso, o app já está rodando — procure o ícone na bandeja.
+
+### Falta um passo para a digitação funcionar
 
 O Wayland bloqueia, por design, que aplicativos injetem teclas. O caminho é escrever
 no teclado virtual do kernel (`/dev/uinput`), que por padrão pertence a `root:root`
 com modo `0600`.
 
-`./scripts/enable-uinput.sh` cria uma regra udev liberando esse dispositivo para o
-grupo `input`, aplica na hora e **testa de verdade** — só declara sucesso se o
-dispositivo abrir.
+Rode uma vez:
+
+```bash
+sudo ./scripts/enable-uinput.sh
+```
+
+Ele cria uma regra udev liberando o dispositivo para o grupo `input`, aplica na hora
+e **testa de verdade** — só declara sucesso se o dispositivo abrir. Se a digitação
+não funcionar, é este passo que falta; o `install.sh --status` avisa.
+
+## Comandos do instalador
+
+```bash
+./install.sh                 # instalar ou atualizar
+./install.sh --autostart     # instalar e iniciar junto com a sessão
+./install.sh --status        # ver o que está instalado
+./install.sh --uninstall     # remover (mantém suas configurações)
+./install.sh --no-autostart  # só desativar o início automático
+./install.sh --remove-uinput # remover também a regra udev (pede sudo)
+```
+
+O `--uninstall` **preserva** suas configurações (`~/.config/clipb-paste/`) e logs.
+Para apagar também:
+
+```bash
+rm -rf ~/.config/clipb-paste ~/.local/state/clipb-paste
+```
+
+### Atualizar
+
+```bash
+cd ClipB-Paste && git pull && ./install.sh
+```
 
 ## Uso
 
 ```bash
-./bin/clipb-paste daemon            # inicia o app (bandeja)
-./bin/clipb-paste doctor            # diagnóstico do ambiente
-./bin/clipb-paste type --clipboard  # digita o clipboard na janela ativa
-./bin/clipb-paste type "texto"      # digita um texto qualquer
-./bin/clipb-paste windows           # lista as janelas visíveis
-./bin/clipb-paste target            # mostra a janela sob o ponteiro
-./bin/clipb-paste settings          # abre as configurações
+clipb-paste daemon            # inicia o app (bandeja)
+clipb-paste doctor            # diagnóstico do ambiente
+clipb-paste type --clipboard  # digita o clipboard na janela ativa
+clipb-paste type "texto"      # digita um texto qualquer
+clipb-paste windows           # lista as janelas visíveis
+clipb-paste target            # mostra a janela sob o ponteiro
+clipb-paste settings          # abre as configurações
 ```
 
 ### A bandeja
