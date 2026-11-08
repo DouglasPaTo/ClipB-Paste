@@ -28,3 +28,6 @@ upstream-*.tar.gz
 .idea/
 *.swp
 .DS_Store
+# Build
+build/
+dist/

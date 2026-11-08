@@ -110,6 +110,33 @@ Ele cria uma regra udev liberando o dispositivo para o grupo `input`, aplica na 
 e **testa de verdade** — só declara sucesso se o dispositivo abrir. Se a digitação
 não funcionar, é este passo que falta; o `install.sh --status` avisa.
 
+## Pacote .deb (instalação para o sistema)
+
+Para instalar em **todo o sistema** (`/usr/bin`, disponível a qualquer usuário),
+gere e instale o `.deb`:
+
+```bash
+./packaging/build-deb.sh              # gera dist/clipb-paste_1.4.4_all.deb
+sudo apt install ./dist/clipb-paste_1.4.4_all.deb
+sudo clipb-paste enable-uinput        # libera a digitação (uma vez)
+```
+
+O `apt` resolve as dependências sozinho (`python3-gi`, `python3-dbus`,
+`wl-clipboard`).
+
+### Diferença entre as duas formas
+
+| | `install.sh` | `.deb` |
+|---|---|---|
+| Onde instala | `~/.local` (só seu usuário) | `/usr` (todos os usuários) |
+| Precisa de sudo | só no `enable-uinput` | sim, para instalar |
+| Dependências | você instala à mão | `apt` resolve |
+| Remove com | `./install.sh --uninstall` | `sudo apt remove clipb-paste` |
+| Atualiza com | `git pull && ./install.sh` | novo `.deb` |
+
+As **configurações ficam no mesmo lugar** nos dois casos (`~/.config/clipb-paste/`),
+então migrar de um para o outro preserva os ajustes.
+
 ## Comandos do instalador
 
 ```bash

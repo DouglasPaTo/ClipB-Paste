@@ -226,6 +226,56 @@ def cmd_abort(_args) -> int:
         return 1
 
 
+def cmd_enable_uinput(_args) -> int:
+    """Cria a regra udev que libera /dev/uinput (precisa de sudo).
+
+    Equivale ao scripts/enable-uinput.sh, mas disponível como subcomando do app
+    instalado — o usuário do .deb não tem o script à mão.
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    if os.geteuid() != 0:
+        print("Este comando precisa de root. Rode:", file=sys.stderr)
+        print("  sudo clipb-paste enable-uinput", file=sys.stderr)
+        return 2
+
+    regra = (
+        'KERNEL=="uinput", GROUP="input", MODE="0660", '
+        'OPTIONS+="static_node=uinput"\n'
+    )
+    destino = Path("/etc/udev/rules.d/60-uinput-clipb-paste.rules")
+
+    print(f"criando {destino}")
+    destino.write_text(regra, encoding="utf-8")
+
+    print("recarregando as regras do udev")
+    for cmd in (["udevadm", "control", "--reload-rules"],
+                ["udevadm", "trigger", "--name-match=uinput"]):
+        try:
+            subprocess.run(cmd, check=False, capture_output=True)
+        except FileNotFoundError:
+            print(f"aviso: {cmd[0]} não encontrado", file=sys.stderr)
+
+    # aplica na hora, mesmo que o udev demore
+    for cmd in (["chgrp", "input", "/dev/uinput"], ["chmod", "0660", "/dev/uinput"]):
+        subprocess.run(cmd, check=False, capture_output=True)
+
+    # o usuário precisa estar no grupo input
+    usuario = os.environ.get("SUDO_USER") or os.environ.get("USER") or ""
+    if usuario:
+        grupos = subprocess.run(["id", "-nG", usuario], capture_output=True, text=True)
+        if "input" not in grupos.stdout.split():
+            print(f"adicionando {usuario} ao grupo 'input'")
+            subprocess.run(["usermod", "-aG", "input", usuario], check=False)
+            print()
+            print("!! Faça LOGOUT e LOGIN para o grupo valer em sessões novas.")
+    print()
+    print("Pronto. Verifique com: clipb-paste doctor")
+    return 0
+
+
 def cmd_settings(_args) -> int:
     from . import ui
 
@@ -270,6 +320,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("kwin-install", help="carrega o script no KWin")
     p.set_defaults(func=cmd_kwin_install)
+
+    p = sub.add_parser("enable-uinput", help="libera /dev/uinput (precisa de sudo)")
+    p.set_defaults(func=cmd_enable_uinput)
 
     p = sub.add_parser("abort", help="para uma digitação em andamento")
     p.set_defaults(func=cmd_abort)

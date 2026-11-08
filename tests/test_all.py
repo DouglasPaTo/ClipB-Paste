@@ -664,6 +664,48 @@ class TestBotaoDePanico(unittest.TestCase):
         self.assertIn("pode_ler_teclado", src)
 
 
+class TestPacoteDeb(unittest.TestCase):
+    """O .deb instala no sistema (/usr), diferente do install.sh (~/.local)."""
+
+    def test_build_script_existe(self):
+        script = ROOT / "packaging" / "build-deb.sh"
+        self.assertTrue(script.is_file())
+        import os
+        self.assertTrue(os.access(script, os.X_OK), "precisa ser executável")
+
+    def test_declara_dependencias(self):
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        # sem estas o app não roda; o apt precisa saber
+        for dep in ("python3-gi", "python3-dbus", "wl-clipboard"):
+            self.assertIn(dep, src)
+
+    def test_instala_nos_caminhos_de_sistema(self):
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        for caminho in ("/usr/bin", "/usr/lib", "/usr/share"):
+            self.assertIn(caminho, src)
+        # NÃO pode instalar em ~/.local
+        self.assertNotIn("$HOME/.local", src)
+
+    def test_script_do_kwin_vai_para_usr_share(self):
+        """script_path() procura em /usr/share/clipb-paste/kwin/."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("usr/share/$PKG/kwin", src)
+        kwin = (ROOT / "src" / "clipbpaste" / "kwin.py").read_text(encoding="utf-8")
+        self.assertIn("/usr/share/clipb-paste/kwin/clipb-paste.js", kwin)
+
+    def test_comando_enable_uinput_existe(self):
+        """O postinst manda rodar 'sudo clipb-paste enable-uinput'."""
+        from clipbpaste.cli import build_parser
+
+        parser = build_parser()
+        for action in parser._subparsers._group_actions:
+            self.assertIn("enable-uinput", action.choices)
+
+    def test_preserva_configuracoes_ao_remover(self):
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("preservadas", src)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 
