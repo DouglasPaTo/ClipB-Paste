@@ -428,11 +428,17 @@ class TestBackendSeguro(unittest.TestCase):
             self.assertNotEqual(backend.name, "ydotool")
 
     def test_ydotool_explica_o_motivo(self):
+        """O motivo pode variar (não instalado, daemon parado, versão antiga),
+        mas sempre deve explicar algo - nunca aparecer indisponível sem motivo."""
         from clipbpaste.backends import ydotool
 
         status = ydotool.probe()
         if not status.available:
-            self.assertIn("acento", status.reason.lower())
+            self.assertTrue(status.reason.strip(),
+                            "backend indisponível precisa explicar o motivo")
+            # se as dependências estão ok, o motivo é a limitação do 0.1.8
+            if ydotool._client() and ydotool._socket_path():
+                self.assertIn("acento", status.reason.lower())
 
 
 class TestAcentosABNT2(unittest.TestCase):
