@@ -1,0 +1,30 @@
+# Binários compilados (o uinput-type é gerado por scripts/)
+bin/uinput-type
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Configuração local do usuário
+config.json
+*.log
+
+# Backup do projeto de origem (não versionar: é código de terceiros)
+upstream-*.tar.gz
+*.tar.gz
+!*.tar.gz.keep
+
+# Editores e sistema
+.vscode/
+.idea/
+*.swp
+.DS_Store
