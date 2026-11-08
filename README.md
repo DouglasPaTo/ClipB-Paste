@@ -173,6 +173,25 @@ redesenhando a cada troca.
 clicando no ícone, com a opção *"Não mostrar novamente"* (fica salva na
 configuração).
 
+### Botão de pânico: qualquer tecla para
+
+O pior cenário é o app digitando um texto enorme no lugar errado **sem o ícone na
+bandeja** — aí as próprias teclas que você digitaria para rodar um comando se
+misturam ao texto que está sendo digitado.
+
+Para esse caso existe o **botão de pânico**: o helper lê os teclados físicos
+(via `/dev/input`, que o grupo `input` permite) e **para na primeira tecla
+apertada**. Aperte `Esc`, uma seta, qualquer coisa — e a digitação interrompe.
+
+```
+$ ./bin/uinput-type   (texto de 6000 caracteres)
+[stderr] uinput-type: tecla pressionada, parando
+```
+
+Além disso, se o **daemon morrer** (kill, crash, logout), o helper também para
+sozinho — ele monitora o PID do app a cada tecla. Sem isso, matar o processo não
+interromperia um texto longo em andamento.
+
 ### Parar uma digitação
 
 Se colou o texto errado ou é longo demais, há três formas de parar:

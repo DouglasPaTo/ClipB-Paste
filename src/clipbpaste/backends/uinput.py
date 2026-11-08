@@ -92,6 +92,22 @@ def active_layout() -> str:
     return ""
 
 
+def pode_ler_teclado() -> bool:
+    """True se temos permissão de ler /dev/input (para o 'pare com qualquer tecla')."""
+    import glob
+
+    for dev in glob.glob("/dev/input/event*"):
+        try:
+            import os
+
+            fd = os.open(dev, os.O_RDONLY | os.O_NONBLOCK)
+            os.close(fd)
+            return True
+        except (PermissionError, OSError):
+            continue
+    return False
+
+
 def _writable() -> bool:
     try:
         return os.access(UINPUT_DEVICE, os.W_OK)
@@ -186,6 +202,8 @@ class UinputBackend(TypingBackend):
             layout = active_layout()
             if layout:
                 env["CLIPBPASTE_LAYOUT"] = layout
+            # O helper monitora este PID: se o app morrer, ele para de digitar.
+            env["CLIPBPASTE_PARENT_PID"] = str(os.getpid())
 
             proc = subprocess.Popen(
                 [str(self._helper), str(max(0, int(key_delay_ms)))],

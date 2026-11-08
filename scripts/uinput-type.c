@@ -23,7 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 #include <time.h>
+#include <errno.h>
 #include <unistd.h>
 
 static int ufd = -1;
@@ -365,11 +369,104 @@ static int keycode_for(unsigned char ch, int *shift) {
     }
 }
 
+/* --- Botão de pânico: qualquer tecla física interrompe a digitação ----------
+ *
+ * O pior cenário é o app digitando um texto enorme no lugar errado, sem o
+ * usuário conseguir nem abrir o terminal para matar o processo — porque as
+ * próprias teclas dele se misturam à digitação.
+ *
+ * Solução: se tivermos permissão de ler /dev/input (grupo "input"), abrimos os
+ * teclados físicos e paramos na primeira tecla apertada. O usuário então aperta
+ * QUALQUER tecla (Esc, seta, espaço) e a digitação para.
+ *
+ * Os dispositivos do próprio ClipB-Paste ("ClipB-Paste virtual keyboard") são
+ * ignorados, senão ele pararia a si mesmo.
+ */
+#define MAX_TECLADOS 16
+static int fds_teclado[MAX_TECLADOS];
+static int n_teclados = 0;
+
+static void abrir_teclados_fisicos(void) {
+    DIR *d = opendir("/dev/input");
+    if (!d) return;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL && n_teclados < MAX_TECLADOS) {
+        if (strncmp(e->d_name, "event", 5) != 0) continue;
+        char caminho[300];
+        snprintf(caminho, sizeof(caminho), "/dev/input/%s", e->d_name);
+
+        int fd = open(caminho, O_RDONLY | O_NONBLOCK);
+        if (fd < 0) continue;
+
+        char nome[64] = {0};
+        if (ioctl(fd, EVIOCGNAME(sizeof(nome) - 1), nome) >= 0) {
+            /* Ignora teclados VIRTUAIS: o nosso e os do ydotool/uinput. Sem
+               isso o app pararia a si mesmo (seu próprio uinput é lido). */
+            if (strstr(nome, "ClipB-Paste") || strstr(nome, "uinput") ||
+                strstr(nome, "ydotoold") || strstr(nome, "virtual")) {
+                close(fd);
+                continue;
+            }
+
+            /* Precisa ter teclas. O limite é BAIXO de propósito: notebooks
+               dividem o teclado em vários dispositivos (este ASUSTeK aparece
+               como 20 + 26 teclas). Mouse/touchpad ficam abaixo disso. */
+            unsigned long bits[(KEY_CNT / 8 / sizeof(unsigned long)) + 2] = {0};
+            if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(bits)), bits) < 0) {
+                close(fd);
+                continue;
+            }
+            int total = 0;
+            for (int b = 0; b < (int)(sizeof(bits) / sizeof(bits[0])); b++) {
+                for (int bit = 0; bit < 8; bit++) {
+                    if (bits[b] & (1UL << bit)) total++;
+                }
+            }
+            if (total < 8) {           /* mouse tem poucas teclas */
+                close(fd);
+                continue;
+            }
+        }
+        fds_teclado[n_teclados++] = fd;
+    }
+    closedir(d);
+}
+
+/* Devolve 1 se alguma tecla física foi apertada. */
+static int tecla_fisica_pressionada(void) {
+    struct input_event ev;
+    for (int i = 0; i < n_teclados; i++) {
+        while (read(fds_teclado[i], &ev, sizeof(ev)) == sizeof(ev)) {
+            if (ev.type == EV_KEY && ev.value == 1) {
+                return 1;              /* tecla pressionada */
+            }
+        }
+    }
+    return 0;
+}
+
+static void fechar_teclados(void) {
+    for (int i = 0; i < n_teclados; i++) close(fds_teclado[i]);
+    n_teclados = 0;
+}
+
+/* PID do daemon (passado pelo app). Se ele morrer, paramos de digitar:
+ * um texto enorme não deve continuar saindo depois de matar o app. */
+static pid_t pid_daemon = 0;
+
+static int daemon_vivo(void) {
+    if (pid_daemon <= 0) return 1;          /* sem monitoramento */
+    return kill(pid_daemon, 0) == 0 || errno == EPERM;
+}
+
 int main(int argc, char **argv) {
     /* O app define CLIPBPASTE_LAYOUT=br quando o layout ativo é o brasileiro.
        Sem dead keys (layout us) os acentos são pulados em vez de sair errado. */
     const char *env_layout = getenv("CLIPBPASTE_LAYOUT");
     int layout_br = (env_layout && strcmp(env_layout, "br") == 0);
+
+    const char *env_pid = getenv("CLIPBPASTE_PARENT_PID");
+    if (env_pid) pid_daemon = (pid_t)atoi(env_pid);
 
     long delay = 15;
     if (argc > 1) {
@@ -379,10 +476,22 @@ int main(int argc, char **argv) {
     }
 
     setup_device();
+    abrir_teclados_fisicos();
 
     int ch;
     int anterior = -1;  /* keycode da tecla anterior, para detectar repetição */
     while ((ch = fgetc(stdin)) != EOF) {
+        /* Se o daemon morreu (kill, crash, logout), parar de digitar AGORA.
+           Sem isso, matar o app não pararia um texto longo em andamento. */
+        if (!daemon_vivo()) {
+            fprintf(stderr, "uinput-type: daemon encerrado, parando\n");
+            break;
+        }
+        /* Qualquer tecla física = pânico. O usuário aperta Esc e para. */
+        if (tecla_fisica_pressionada()) {
+            fprintf(stderr, "uinput-type: tecla pressionada, parando\n");
+            break;
+        }
         /* Acentos: UTF-8 de 2 bytes. NÃO tentamos composição por dead key: no
            layout "us" puro as dead keys não existem e o resultado seria lixo
            ("Compactação" virava "Compactac~"ao"). Pulamos o caractere e o app
@@ -536,6 +645,7 @@ int main(int argc, char **argv) {
     syn();
     sleep_ms(300);
 
+    fechar_teclados();
     destroy_device();
     return 0;
 }

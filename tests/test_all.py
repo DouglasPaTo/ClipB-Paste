@@ -634,14 +634,46 @@ class TestFeedbackVisual(unittest.TestCase):
         self.assertIn('"-alert"', inst)
 
 
+class TestBotaoDePanico(unittest.TestCase):
+    """O cenário de desgraça completa: app digitando, sem ícone, e o usuário
+    não consegue nem digitar um comando para matar o processo."""
+
+    FONTE = (ROOT / "scripts" / "uinput-type.c").read_text(encoding="utf-8")
+
+    def test_qualquer_tecla_fisica_para(self):
+        self.assertIn("tecla_fisica_pressionada", self.FONTE)
+        self.assertIn("tecla pressionada, parando", self.FONTE)
+
+    def test_ignora_o_proprio_teclado_virtual(self):
+        """Sem isso o app pararia a si mesmo (lê o próprio uinput)."""
+        for virtual in ("ClipB-Paste", "uinput", "ydotoold", "virtual"):
+            self.assertIn(virtual, self.FONTE)
+
+    def test_helper_para_se_o_daemon_morrer(self):
+        """Matar o app não pode deixar o texto saindo até o fim."""
+        self.assertIn("daemon_vivo", self.FONTE)
+        self.assertIn("CLIPBPASTE_PARENT_PID", self.FONTE)
+        self.assertIn("daemon encerrado, parando", self.FONTE)
+
+    def test_backend_passa_o_pid(self):
+        src = (ROOT / "src" / "clipbpaste" / "backends" / "uinput.py").read_text(encoding="utf-8")
+        self.assertIn("CLIPBPASTE_PARENT_PID", src)
+
+    def test_deteccao_de_leitura(self):
+        src = (ROOT / "src" / "clipbpaste" / "backends" / "uinput.py").read_text(encoding="utf-8")
+        self.assertIn("pode_ler_teclado", src)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 
     def test_helper_espera_antes_de_destruir(self):
         """Bug real: com 50 ms de espera o fim do texto se perdia (-777 virava -7)."""
         src = (ROOT / "scripts" / "uinput-type.c").read_text(encoding="utf-8")
-        trecho = src[src.index("int main("):]
-        espera = __import__("re").search(r"sleep_ms\((\d+)\);\s*\n\s*destroy_device", trecho)
+        # olha só o FINAL do arquivo (o cleanup), não o loop
+        trecho = src[src.rindex("destroy_device();"):]
+        antes = src[:src.rindex("destroy_device();")]
+        espera = __import__("re").search(r"sleep_ms\((\d+)\);\s*\n(?:\s*fechar_teclados\(\);\s*\n)?\s*$", antes)
         self.assertIsNotNone(espera, "o helper precisa esperar antes de destruir o dispositivo")
         self.assertGreaterEqual(
             int(espera.group(1)), 200,
