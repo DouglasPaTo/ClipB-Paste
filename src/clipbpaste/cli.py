@@ -18,6 +18,7 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
 
 from . import clipboard, config
 
@@ -226,6 +227,82 @@ def cmd_abort(_args) -> int:
         return 1
 
 
+def cmd_autostart(args) -> int:
+    """Liga ou desliga a inicialização automática com a sessão gráfica.
+
+    Instala um .desktop em ~/.config/autostart, que é o mecanismo padrão
+    (freedesktop) para iniciar aplicativos de bandeja no login. Funciona com
+    ou sem .deb, e não exige sudo.
+    """
+    import os
+
+    config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    destino = Path(config_home) / "autostart" / "clipb-paste.desktop"
+
+    # Se o .deb instalou o autostart de sistema, desligar exige bloquear por
+    # usuário (Hidden=true), não só apagar o arquivo.
+    sistema = Path("/etc/xdg/autostart/clipb-paste.desktop")
+
+    if args.enable:
+        executavel = sys.argv[0]
+        if not executavel.startswith("/"):
+            executavel = shutil_which("clipb-paste") or "/usr/bin/clipb-paste"
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=ClipB-Paste\n"
+            "Comment=Inicia o ClipB-Paste com a sessão gráfica\n"
+            f"Exec={executavel} daemon\n"
+            "Icon=clipb-paste\n"
+            "Terminal=false\n"
+            "NoDisplay=true\n"
+            "X-GNOME-Autostart-enabled=true\n"
+            "StartupNotify=false\n",
+            encoding="utf-8",
+        )
+        print(f"início automático ativado: {destino}")
+        return 0
+
+    if args.disable:
+        if sistema.is_file():
+            # bloqueia o autostart de sistema só para este usuário
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            destino.write_text(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=ClipB-Paste\n"
+                "Exec=/usr/bin/clipb-paste daemon\n"
+                "Hidden=true\n",
+                encoding="utf-8",
+            )
+            print(f"início automático desativado para este usuário: {destino}")
+        elif destino.is_file():
+            destino.unlink()
+            print("início automático desativado")
+        else:
+            print("o início automático já estava desativado")
+        return 0
+
+    # sem --enable/--disable: mostra o estado
+    if destino.is_file() and "Hidden=true" in destino.read_text(encoding="utf-8"):
+        print("início automático: desativado (bloqueado pelo usuário)")
+    elif destino.is_file():
+        print(f"início automático: ativado ({destino})")
+    elif sistema.is_file():
+        print(f"início automático: ativado pelo pacote ({sistema})")
+    else:
+        print("início automático: desativado")
+        print("  Ative com: clipb-paste autostart --enable")
+    return 0
+
+
+def shutil_which(name: str) -> str | None:
+    import shutil
+
+    return shutil.which(name)
+
+
 def cmd_enable_uinput(_args) -> int:
     """Cria a regra udev que libera /dev/uinput (precisa de sudo).
 
@@ -325,6 +402,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("kwin-install", help="carrega o script no KWin")
     p.set_defaults(func=cmd_kwin_install)
+
+    p = sub.add_parser("autostart", help="iniciar junto com a sessão gráfica")
+    p.add_argument("--enable", action="store_true", help="ativar")
+    p.add_argument("--disable", action="store_true", help="desativar")
+    p.set_defaults(func=cmd_autostart)
 
     p = sub.add_parser("enable-uinput", help="libera /dev/uinput (precisa de sudo)")
     p.set_defaults(func=cmd_enable_uinput)

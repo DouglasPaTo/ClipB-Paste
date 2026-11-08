@@ -670,6 +670,44 @@ class TestBotaoDePanico(unittest.TestCase):
         self.assertIn("pode_ler_teclado", src)
 
 
+class TestAutostart(unittest.TestCase):
+    """O .deb instalava mas não subia no boot: não havia entrada de autostart."""
+
+    def test_deb_instala_autostart_de_sistema(self):
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("/etc/xdg/autostart", src)
+        self.assertIn("X-GNOME-Autostart-enabled=true", src)
+
+    def test_autostart_usa_xdg_nao_systemd(self):
+        """systemd de sistema NÃO serve: rodaria antes da sessão gráfica,
+        sem WAYLAND_DISPLAY nem barramento D-Bus do usuário."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        self.assertIn("xdg/autostart", src)
+        self.assertNotIn("/lib/systemd/system", src)
+        self.assertNotIn("/etc/systemd/system", src)
+
+    def test_comando_autostart_existe(self):
+        from clipbpaste.cli import build_parser
+
+        parser = build_parser()
+        for action in parser._subparsers._group_actions:
+            self.assertIn("autostart", action.choices)
+
+    def test_autostart_pode_ser_desativado(self):
+        """Com o autostart de sistema instalado pelo .deb, desativar precisa
+        criar um bloqueio por usuário (Hidden=true), não só apagar."""
+        src = (ROOT / "src" / "clipbpaste" / "cli.py").read_text(encoding="utf-8")
+        trecho = src[src.index("def cmd_autostart"):src.index("def cmd_enable_uinput")]
+        self.assertIn("Hidden=true", trecho)
+        self.assertIn("/etc/xdg/autostart", trecho)
+
+    def test_exec_usa_caminho_absoluto(self):
+        """'clipb-paste' relativo pode não ser encontrado no login."""
+        src = (ROOT / "src" / "clipbpaste" / "cli.py").read_text(encoding="utf-8")
+        trecho = src[src.index("def cmd_autostart"):src.index("def cmd_enable_uinput")]
+        self.assertIn("startswith(\"/\")", trecho)
+
+
 class TestPacoteDeb(unittest.TestCase):
     """O .deb instala no sistema (/usr), diferente do install.sh (~/.local)."""
 

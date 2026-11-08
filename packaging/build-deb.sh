@@ -26,6 +26,7 @@ src = pathlib.Path('$ROOT/src/clipbpaste/__init__.py').read_text()
 print(re.search(r'__version__ = \"([^\"]+)\"', src).group(1))
 ")"
 PKG="clipb-paste"
+APP_NAME="ClipB-Paste"
 ARCH="all"
 BUILD="$ROOT/build/deb"
 OUT="$ROOT/dist"
@@ -92,7 +93,26 @@ for size in 16 22 24 32 48 64 128; do
     done
 done
 
-# entrada no menu
+# entrada no menu E autostart de sistema.
+# /etc/xdg/autostart/ é o padrão freedesktop: todo desktop o executa no login
+# gráfico, para qualquer usuário. Um serviço systemd de sistema NÃO serve aqui,
+# porque rodaria antes da sessão gráfica existir (sem WAYLAND_DISPLAY, sem
+# barramento D-Bus do usuário).
+mkdir -p "$BUILD/etc/xdg/autostart"
+cat > "$BUILD/etc/xdg/autostart/$PKG.desktop" <<AUTOSTART
+[Desktop Entry]
+Type=Application
+Name=$APP_NAME
+Comment=Inicia o ClipB-Paste com a sessão gráfica
+Comment[en]=Starts ClipB-Paste with the desktop session
+Exec=/usr/bin/$PKG daemon
+Icon=$PKG
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
+AUTOSTART
+
 mkdir -p "$BUILD/usr/share/applications"
 cat > "$BUILD/usr/share/applications/$PKG.desktop" <<EOF
 [Desktop Entry]
@@ -357,6 +377,7 @@ blue "normalizando permissões"
 find "$BUILD/usr/lib" -type f -exec chmod 644 {} +
 find "$BUILD/usr/lib" -type d -exec chmod 755 {} +
 find "$BUILD/usr/share" -type f -exec chmod 644 {} +
+find "$BUILD/etc" -type f -exec chmod 644 {} +
 find "$BUILD/usr/share" -type d -exec chmod 755 {} +
 chmod 755 "$BUILD/usr/bin/$PKG"
 [[ -f "$BUILD/usr/lib/$PKG/bin/uinput-type" ]] && chmod 755 "$BUILD/usr/lib/$PKG/bin/uinput-type"

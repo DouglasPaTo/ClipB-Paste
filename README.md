@@ -43,6 +43,14 @@ Pronto. Procure o ícone na bandeja.
 
 Para remover: `sudo apt remove clipb-paste`
 
+O `.deb` também instala o **autostart** em `/etc/xdg/autostart/`, então o app sobe
+a cada login. Para desativar só para você:
+
+```bash
+clipb-paste autostart --disable    # cria bloqueio por usuário (Hidden=true)
+clipb-paste autostart              # mostra o estado atual
+```
+
 ### Opção 2 — script (por usuário, sem sudo para instalar)
 
 ```bash
@@ -81,6 +89,21 @@ então migrar entre eles preserva os ajustes.
 ```bash
 ./packaging/build-deb.sh      # gera dist/clipb-paste_<versão>_all.deb
 ```
+
+### Iniciar com o sistema
+
+O autostart usa arquivos `.desktop` em `~/.config/autostart/` (por usuário) ou
+`/etc/xdg/autostart/` (sistema, instalado pelo `.deb`).
+
+```bash
+clipb-paste autostart              # mostra o estado
+clipb-paste autostart --enable     # ativa para o seu usuário
+clipb-paste autostart --disable    # desativa (mesmo com o .deb instalado)
+```
+
+> **Não use `systemctl` para isso.** Um serviço systemd de sistema rodaria antes
+> da sessão gráfica existir, sem `WAYLAND_DISPLAY` nem o barramento D-Bus do
+> usuário — o app não teria onde desenhar o ícone da bandeja.
 
 ### Atualizar
 
