@@ -174,27 +174,45 @@ class UinputBackend(TypingBackend):
         time.sleep(0.2)  # o kernel precisa registrar o dispositivo
         return self._device
 
-    def type_text(self, text: str, *, key_delay_ms: int = 15) -> None:
+    def type_text(self, text: str, *, key_delay_ms: int = 15, should_stop=None) -> None:
         if not text:
             return
         if self._helper is not None:
             import os
+            import signal
+            import subprocess
 
             env = dict(os.environ)
             layout = active_layout()
             if layout:
                 env["CLIPBPASTE_LAYOUT"] = layout
-            res = procutil.run(
+
+            proc = subprocess.Popen(
                 [str(self._helper), str(max(0, int(key_delay_ms)))],
-                stdin=text, timeout=max(15.0, len(text) * 0.05 + 10.0), env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, env=env, start_new_session=True,
             )
-            if not res.ok:
-                raise RuntimeError(f"uinput-type falhou: {res.stderr.strip() or res.returncode}")
+            self._proc = proc    # permite matar de outra thread (stop())
+            try:
+                proc.communicate(text.encode("utf-8"),
+                                 timeout=max(30.0, len(text) * 0.15 + 15.0))
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                raise RuntimeError("uinput-type travou e foi encerrado")
+            finally:
+                self._proc = None
+
+            if should_stop is not None and should_stop():
+                return
+            if proc.returncode not in (0, -signal.SIGTERM, -signal.SIGKILL):
+                raise RuntimeError(f"uinput-type terminou com código {proc.returncode}")
             return
 
         device = self._ensure_device()
         delay = max(0.001, key_delay_ms / 1000.0)
         for ch in text:
+            if should_stop is not None and should_stop():
+                return
             mapping = _ASCII.get(ch)
             if mapping is None:
                 continue  # uinput sem mapa para este caractere (acentos vão pelo ydotool)
@@ -207,6 +225,21 @@ class UinputBackend(TypingBackend):
                 device.emit(KEY_LEFTSHIFT, 0)
             device.emit(EV_SYN, SYN_REPORT)
             time.sleep(delay)
+
+    def stop(self) -> None:
+        """Encerra a digitação em andamento (seguro a partir de outra thread)."""
+        proc = getattr(self, "_proc", None)
+        if proc is not None and proc.poll() is None:
+            try:
+                import os
+                import signal
+
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     def send_key(self, key: str) -> bool:
         code = _NAMED.get(key.upper())

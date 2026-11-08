@@ -91,6 +91,11 @@ class Config:
                 setattr(cfg, key, value)
             else:
                 cfg.extra[key] = value
+
+        # Corrige arquivos afetados pelo bug de aninhamento ('extra' dentro de
+        # 'extra' dentro de 'extra'...).
+        while set(cfg.extra) == {"extra"} and isinstance(cfg.extra.get("extra"), dict):
+            cfg.extra = cfg.extra["extra"]
         cfg.validate()
         return cfg
 
@@ -107,7 +112,9 @@ class Config:
         path = path or config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         data = asdict(self)
-        data["extra"] = self.extra
+        # asdict() já traz 'extra'; sobrescrever com self.extra evita que os
+        # campos desconhecidos se aninhem um nível a cada salvamento.
+        data["extra"] = dict(self.extra)
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(tmp, path)

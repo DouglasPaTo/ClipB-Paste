@@ -44,7 +44,12 @@ class Typer:
         return self._thread is not None and self._thread.is_alive()
 
     def cancel(self) -> None:
+        """Para a digitação. Seguro a partir de qualquer thread."""
         self._cancel.set()
+        try:
+            self._backend.stop()
+        except Exception:
+            pass
 
     def type_text_async(
         self,
@@ -100,8 +105,16 @@ class Typer:
         # o cancelamento interrompe entre blocos grandes só se o texto for enorme.
         if self._cancel.is_set():
             raise TypingCancelled()
-        self._backend.type_text(text, key_delay_ms=key_delay_ms)
+
+        # O backend recebe should_stop: ele interrompe no meio se o usuário pedir.
+        self._backend.type_text(
+            text, key_delay_ms=key_delay_ms, should_stop=self._cancel.is_set
+        )
         self._backend.flush()
+
+        # Se foi interrompido, não é uma conclusão normal.
+        if self._cancel.is_set():
+            raise TypingCancelled()
 
 
 class ClipboardError(RuntimeError):

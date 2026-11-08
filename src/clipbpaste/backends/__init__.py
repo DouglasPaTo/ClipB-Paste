@@ -52,9 +52,17 @@ class TypingBackend:
     def available(self) -> bool:
         return self.probe().available
 
-    def type_text(self, text: str, *, key_delay_ms: int = 15) -> None:
-        """Digita ``text`` caractere a caractere, respeitando ``key_delay_ms``."""
+    def type_text(self, text: str, *, key_delay_ms: int = 15, should_stop=None) -> None:
+        """Digita ``text`` caractere a caractere, respeitando ``key_delay_ms``.
+
+        ``should_stop`` é uma função que devolve True quando o usuário pediu para
+        parar. O backend deve interromper o mais rápido possível — em textos
+        longos, poder parar é mais importante que terminar.
+        """
         raise NotImplementedError
+
+    def stop(self) -> None:
+        """Aborta uma digitação em andamento (chamado de outra thread)."""
 
     def send_key(self, key: str) -> bool:
         """Envia uma tecla nomeada (``RETURN``, ``ESCAPE``, ``F12``…)."""

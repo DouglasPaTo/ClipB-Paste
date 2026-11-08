@@ -51,6 +51,25 @@ class TestConfig(unittest.TestCase):
             cfg = config.Config.load(path)  # não deve levantar
             self.assertEqual(cfg.backend, "auto")  # volta ao padrão
 
+    def test_extra_nao_aninha_ao_salvar(self):
+        """Bug real: asdict() já traz 'extra', e sobrescrever com self.extra
+        fazia cada salvamento aninhar mais um nível."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            cfg = config.Config()
+            cfg.extra["chave"] = 1
+            for _ in range(5):        # salvar várias vezes não pode aninhar
+                cfg.save(path)
+                cfg = config.Config.load(path)
+            self.assertEqual(cfg.extra, {"chave": 1})
+
+    def test_corrige_arquivo_com_extra_aninhado(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(json.dumps({"extra": {"extra": {"extra": {"x": 9}}}}), encoding="utf-8")
+            cfg = config.Config.load(path)
+            self.assertEqual(cfg.extra, {"x": 9})
+
     def test_chaves_desconhecidas_vao_para_extra(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"
@@ -141,11 +160,62 @@ class FakeBackend(stdout_backend.StdoutBackend):
         self.received: list[str] = []
         self.flushed = False
 
-    def type_text(self, text: str, *, key_delay_ms: int = 15) -> None:
+    def type_text(self, text: str, *, key_delay_ms: int = 15, should_stop=None) -> None:
         self.received.append(text)
 
     def flush(self) -> None:
         self.flushed = True
+
+
+class TestCancelamento(unittest.TestCase):
+    """Parar no meio do texto precisa funcionar de verdade.
+
+    Antes o cancel() só marcava uma flag: o helper já estava rodando numa única
+    chamada e não checava nada, então o texto continuava saindo até o fim.
+    """
+
+    def test_backend_declara_should_stop(self):
+        from clipbpaste.backends import TypingBackend
+        import inspect
+
+        assinatura = inspect.signature(TypingBackend.type_text)
+        self.assertIn("should_stop", assinatura.parameters)
+
+    def test_backend_tem_stop(self):
+        from clipbpaste.backends import TypingBackend
+
+        self.assertTrue(hasattr(TypingBackend, "stop"))
+
+    def test_typer_para_apos_cancel(self):
+        """Depois de cancel(), a digitação termina em 'cancelada', não normal."""
+        from clipbpaste.typing import TypingCancelled
+
+        class BackendQuePara(stdout_backend.StdoutBackend):
+            def __init__(self):
+                self.parou = False
+
+            def type_text(self, text, *, key_delay_ms=15, should_stop=None):
+                # simula o backend percebendo o pedido de parada
+                if should_stop is not None and should_stop():
+                    self.parou = True
+                else:
+                    self.parou = True
+
+            def stop(self):
+                pass
+
+        backend = BackendQuePara()
+        typer = Typer(backend)
+        typer.cancel()   # pede para parar antes de começar
+        with self.assertRaises(TypingCancelled):
+            typer.type_text_blocking("texto longo", key_delay_ms=10)
+
+    def test_uinput_mata_o_processo(self):
+        """O helper roda como subprocesso: cancelar precisa matá-lo."""
+        src = (ROOT / "src" / "clipbpaste" / "backends" / "uinput.py").read_text(encoding="utf-8")
+        self.assertIn("def stop", src)
+        self.assertIn("SIGTERM", src)
+        self.assertIn("start_new_session=True", src)
 
 
 class TestTyping(unittest.TestCase):
@@ -583,21 +653,22 @@ class TestArtefatos(unittest.TestCase):
         # a saída de Get é (v), então o valor precisa ser empacotado
         self.assertIn('GLib.Variant("v"', src)
 
-    def test_menu_tem_so_configuracoes_e_sair(self):
-        """O menu da bandeja é enxuto: o comportamento principal é o clique."""
+    def test_menu_tem_parar_configuracoes_e_sair(self):
+        """O menu é enxuto, mas "Parar digitação" é essencial: é a saída de
+        emergência quando o texto foi colado no lugar errado."""
         from clipbpaste import i18n
         from clipbpaste.tray import Tray
 
         chaves = [label for _id, label, _sep, _en in Tray.ITEMS if label]
-        self.assertEqual(chaves, ["tray.menu.settings", "tray.menu.quit"])
+        self.assertEqual(chaves, ["tray.menu.stop", "tray.menu.settings", "tray.menu.quit"])
 
         i18n.set_language("pt_BR")
         rotulos = [i18n.tr(k) for k in chaves]
-        self.assertEqual(rotulos, ["Configurações…", "Sair do ClipB-Paste"])
+        self.assertEqual(rotulos, ["Parar digitação", "Configurações…", "Sair do ClipB-Paste"])
 
         i18n.set_language("en")
         rotulos_en = [i18n.tr(k) for k in chaves]
-        self.assertEqual(rotulos_en, ["Settings…", "Quit ClipB-Paste"])
+        self.assertEqual(rotulos_en, ["Stop typing", "Settings…", "Quit ClipB-Paste"])
         i18n.set_language("pt_BR")
 
     def test_menu_declara_propriedades(self):

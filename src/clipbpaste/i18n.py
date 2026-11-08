@@ -97,11 +97,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "pt_BR": "ClipB-Paste: Clique para digitar na janela ativa.",
         "en": "ClipB-Paste: Click to type into the active window.",
     },
-    "tray.tooltip.typing": {"pt_BR": "ClipB-Paste: digitando…", "en": "ClipB-Paste: typing…"},
+    "tray.tooltip.typing": {
+        "pt_BR": "ClipB-Paste: digitando… (clique para parar)",
+        "en": "ClipB-Paste: typing… (click to stop)",
+    },
     "tray.tooltip.no_backend": {
         "pt_BR": "ClipB-Paste: sem backend de digitação",
         "en": "ClipB-Paste: no typing backend",
     },
+    "tray.menu.stop": {"pt_BR": "Parar digitação", "en": "Stop typing"},
     "tray.menu.settings": {"pt_BR": "Configurações…", "en": "Settings…"},
     "tray.menu.quit": {"pt_BR": "Sair do ClipB-Paste", "en": "Quit ClipB-Paste"},
 

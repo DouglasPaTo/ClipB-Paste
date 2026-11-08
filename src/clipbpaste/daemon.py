@@ -123,6 +123,20 @@ class Daemon:
 
     # ---------------------------------------------------------------- KWin
     # ---------------------------------------------------------------- ações
+    @property
+    def typing_now(self) -> bool:
+        """True enquanto texto está sendo digitado."""
+        return self.typer is not None and self.typer.running
+
+    def stop_typing(self) -> None:
+        """Para a digitação em andamento, se houver."""
+        if self.typer is not None and self.typer.running:
+            log.info("parando a digitação a pedido do usuário")
+            self.typer.cancel()
+            self._set_tray_state("idle")
+        else:
+            log.info("nada para parar")
+
     def start_typing(self) -> None:
         """Lê o clipboard e digita na janela alvo."""
         if self.typer is None:

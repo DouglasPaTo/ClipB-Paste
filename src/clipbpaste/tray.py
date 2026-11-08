@@ -201,6 +201,8 @@ class Tray:
     # Os rótulos são resolvidos por tr() em tempo de construção do menu, então
     # trocar o idioma nas Configurações já reflete no próximo menu aberto.
     ITEMS = (
+        (2, "tray.menu.stop", False, True),
+        (5, "", True, True),
         (4, "tray.menu.settings", False, True),
         (6, "", True, True),
         (7, "tray.menu.quit", False, True),
@@ -422,8 +424,14 @@ class Tray:
         from gi.repository import GLib
 
         if method == "Activate":
-            log.info("ícone clicado — iniciando digitação")
-            self.daemon.start_typing()
+            # Clicar no ícone ENQUANTO digita para a digitação em andamento.
+            # É a saída de emergência: colou no lugar errado, clique e parou.
+            if self.daemon.typing_now:
+                log.info("ícone clicado durante a digitação — parando")
+                self.daemon.stop_typing()
+            else:
+                log.info("ícone clicado — iniciando digitação")
+                self.daemon.start_typing()
             invocation.return_value(None)
         elif method == "SecondaryActivate":
             self.daemon.open_settings()
@@ -538,7 +546,10 @@ class Tray:
 
     def _dispatch(self, item_id: int) -> None:
         try:
-            if item_id == 4:
+            if item_id == 2:
+                log.info("menu: parar digitação")
+                self.daemon.stop_typing()
+            elif item_id == 4:
                 log.info("menu: configurações")
                 self.daemon.open_settings()
             elif item_id == 7:
