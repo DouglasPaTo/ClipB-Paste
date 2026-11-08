@@ -95,8 +95,20 @@ clipb-paste settings          # abre as configurações
 ### A bandeja
 
 - **Clique esquerdo** → digita o clipboard na janela **sob o ponteiro**
-- **Clique direito** → menu: *Configurações…* e *Sair do ClipB-Paste*
-- **Tooltip** → *"ClipB-Paste: Clique para digitar na janela ativa."*
+- **Clique esquerdo durante a digitação** → **para** (colou no lugar errado? clique e parou)
+- **Clique direito** → menu: *Parar digitação*, *Configurações…*, *Sair*
+- **Tooltip** → *"Clique para digitar na janela ativa"* / *"digitando… (clique para parar)"*
+
+### Parar uma digitação
+
+Se colou o texto errado ou é longo demais, há três formas de parar:
+
+1. **Clique no ícone** da bandeja (a mais rápida)
+2. Menu → **Parar digitação**
+3. `clipb-paste` → *Parar digitação*
+
+O app interrompe **no meio do texto**: um texto de 280 caracteres para após os
+primeiros, não termina a sequência.
 
 > Não é preciso clicar na janela de destino: clicar no ícone da bandeja leva o foco
 > para o painel do Plasma, então o app ativa a janela sob o ponteiro antes de digitar.
@@ -329,6 +341,27 @@ python3 tests/test_all.py -v    # não precisa de sessão gráfica
 
 Cobrem configuração, parsing de janelas, mapa de teclas, blocos de digitação,
 cancelamento, traduções, estrutura do menu da bandeja e integridade dos artefatos.
+
+## Onde o programa é instalado
+
+A instalação é por usuário, seguindo o padrão XDG — o mesmo usado por programas
+como o VS Code quando instalados sem privilégios:
+
+| Componente | Local |
+|---|---|
+| Executável | `~/.local/bin/clipb-paste` |
+| Código | `~/.local/share/clipb-paste/` |
+| Ícones | `~/.local/share/icons/hicolor/` |
+| Menu de aplicativos | `~/.local/share/applications/clipb-paste.desktop` |
+| Início automático | `~/.config/autostart/clipb-paste.desktop` |
+| Configurações | `~/.config/clipb-paste/config.json` |
+| Logs | `~/.local/state/clipb-paste/clipb-paste.log` |
+
+Nada é copiado para fora do seu diretório pessoal, exceto a regra udev do
+`/dev/uinput` (em `/etc/udev/rules.d/`), criada pelo `enable-uinput.sh`.
+
+Para uma instalação que valha para **todos os usuários** do computador, seria
+preciso um pacote `.deb` — não feito ainda.
 
 ## Licença
 
