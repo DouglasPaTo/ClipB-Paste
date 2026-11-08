@@ -740,6 +740,38 @@ class TestPacoteDeb(unittest.TestCase):
             self.assertNotEqual(perm[7], "-",
                                 f"{caminho} não é legível por outros ({perm})")
 
+    def test_postinst_libera_uinput(self):
+        """O postinst roda como root: aproveita para criar a regra udev,
+        para o usuário não precisar rodar nada depois."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        trecho = src[src.index("POSTINST"):]
+        self.assertIn("60-uinput-clipb-paste.rules", trecho)
+        self.assertIn("udevadm", trecho)
+        self.assertIn("usermod -aG input", trecho)
+
+    def test_postinst_nao_roda_como_root(self):
+        """O app NÃO pode iniciar como root: criaria config em /root e um tray
+        icon no barramento errado."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        trecho = src[src.index("POSTINST"):]
+        self.assertIn("SUDO_USER", trecho)
+        # deve lançar COMO o usuário, nunca direto
+        self.assertIn("COMO_USUARIO", trecho)
+        # e nunca executar /usr/bin/clipb-paste daemon sem o wrapper
+        for linha in trecho.splitlines():
+            if "clipb-paste daemon" in linha and "COMO_USUARIO" not in linha:
+                if linha.strip().startswith("echo"):
+                    continue
+                self.assertIn("$COMO_USUARIO", trecho)
+
+    def test_postinst_detecta_sessao_grafica(self):
+        """runuser + sh -c NÃO herda DISPLAY/WAYLAND_DISPLAY: precisa usar
+        systemctl --user show-environment ou o socket no runtime dir."""
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        trecho = src[src.index("POSTINST"):]
+        self.assertIn("show-environment", trecho)
+        self.assertIn("wayland-*", trecho)
+
     def test_preserva_configuracoes_ao_remover(self):
         src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
         self.assertIn("preservadas", src)

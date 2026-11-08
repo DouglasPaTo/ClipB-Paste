@@ -116,13 +116,21 @@ Para instalar em **todo o sistema** (`/usr/bin`, disponível a qualquer usuário
 gere e instale o `.deb`:
 
 ```bash
-./packaging/build-deb.sh              # gera dist/clipb-paste_1.4.4_all.deb
+./packaging/build-deb.sh
 sudo apt install ./dist/clipb-paste_1.4.4_all.deb
-sudo clipb-paste enable-uinput        # libera a digitação (uma vez)
 ```
 
 O `apt` resolve as dependências sozinho (`python3-gi`, `python3-dbus`,
 `wl-clipboard`).
+
+**Ao terminar, o app já sobe** — o `postinst` aproveita que está rodando como root
+para criar a regra udev do `/dev/uinput` (a única parte que precisa de
+privilégio) e lança o ClipB-Paste **como o usuário**, com o ambiente gráfico
+correto. Não é preciso rodar mais nada.
+
+> O `./` no caminho é obrigatório: sem ele o `apt` procura um pacote nos
+> repositórios em vez de instalar o arquivo. Alternativa sem essa pegadinha:
+> `sudo dpkg -i ./clipb-paste_1.4.4_all.deb`.
 
 ### Diferença entre as duas formas
 

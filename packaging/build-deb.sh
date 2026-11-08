@@ -183,18 +183,101 @@ fi
 
 echo
 echo "ClipB-Paste instalado."
+
+# ------------------------------------------------------------------ liberar uinput
+# Este script roda como ROOT (via sudo apt install). Aproveitamos para criar a
+# regra udev do /dev/uinput, que é a única parte que precisa de privilégio.
+# Assim o usuário não precisa rodar mais nada depois.
+if [ ! -f /etc/udev/rules.d/60-uinput-clipb-paste.rules ]; then
+    echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' \
+        > /etc/udev/rules.d/60-uinput-clipb-paste.rules 2>/dev/null || true
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules 2>/dev/null || true
+        udevadm trigger --name-match=uinput 2>/dev/null || true
+    fi
+    echo "  /dev/uinput liberado para o grupo 'input'"
+fi
+
+# garante que o usuário que chamou o sudo está no grupo input
+USUARIO="${SUDO_USER:-}"
+if [ -n "$USUARIO" ] && [ "$USUARIO" != "root" ]; then
+    if ! id -nG "$USUARIO" 2>/dev/null | tr ' ' '\n' | grep -qx input; then
+        usermod -aG input "$USUARIO" 2>/dev/null || true
+        echo "  $USUARIO adicionado ao grupo 'input' (pode exigir logout/login)"
+    fi
+fi
+# aplica na hora, sem esperar o udev
+chgrp input /dev/uinput 2>/dev/null || true
+chmod 0660 /dev/uinput 2>/dev/null || true
+
 echo
-echo "  Para a digitação funcionar, rode UMA vez (precisa de sudo):"
-echo "    sudo clipb-paste enable-uinput"
+
+# ------------------------------------------------------------------ iniciar
+# NÃO iniciamos o app aqui como root: ele criaria configuração em /root e um
+# tray icon no barramento errado. Lançamos como o usuário que chamou o sudo,
+# com o ambiente gráfico dele.
+# Escolhe como executar comandos como outro usuário. O postinst roda como root,
+# então runuser e sudo -u funcionam; se nenhum existir, usamos su.
+COMO_USUARIO=""
+if command -v runuser >/dev/null 2>&1; then
+    COMO_USUARIO="runuser -u"
+elif command -v sudo >/dev/null 2>&1; then
+    COMO_USUARIO="sudo -u"
+elif command -v su >/dev/null 2>&1; then
+    COMO_USUARIO="su -s /bin/sh -c"
+fi
+
+if [ -n "$USUARIO" ] && [ "$USUARIO" != "root" ] && [ -n "$COMO_USUARIO" ]; then
+    UID_USUARIO=$(id -u "$USUARIO" 2>/dev/null || echo "")
+    if [ -n "$UID_USUARIO" ]; then
+        RUNTIME="/run/user/$UID_USUARIO"
+
+        # Descobre o ambiente gráfico real do usuário.
+        # `runuser ... sh -c` NÃO serve: inicia um shell limpo sem as variáveis
+        # da sessão gráfica. A fonte confiável é o ambiente do systemd --user.
+        AMB=$(env XDG_RUNTIME_DIR="$RUNTIME" DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus" \
+              $COMO_USUARIO "$USUARIO" systemctl --user show-environment 2>/dev/null || true)
+
+        WAYLAND_USUARIO=$(echo "$AMB" | sed -n 's/^WAYLAND_DISPLAY=//p' | head -1)
+        DISPLAY_USUARIO=$(echo "$AMB" | sed -n 's/^DISPLAY=//p' | head -1)
+
+        # fallback: descobre pelo socket que existe no runtime dir
+        if [ -z "$WAYLAND_USUARIO" ]; then
+            for sock in "$RUNTIME"/wayland-*; do
+                case "$sock" in *.lock) continue ;; esac
+                [ -S "$sock" ] && WAYLAND_USUARIO=$(basename "$sock") && break
+            done
+        fi
+
+        if [ -n "$WAYLAND_USUARIO" ] || [ -n "$DISPLAY_USUARIO" ]; then
+            if [ -n "$WAYLAND_USUARIO" ] && [ -S "$RUNTIME/$WAYLAND_USUARIO" ]; then
+                echo "  iniciando o ClipB-Paste na sessão gráfica de $USUARIO"
+                env XDG_RUNTIME_DIR="$RUNTIME" \
+                    WAYLAND_DISPLAY="$WAYLAND_USUARIO" \
+                    DISPLAY="${DISPLAY_USUARIO:-:0}" \
+                    XDG_SESSION_TYPE=wayland \
+                    DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus" \
+                    $COMO_USUARIO "$USUARIO" setsid /usr/bin/clipb-paste daemon \
+                    >/dev/null 2>&1 < /dev/null &
+                sleep 2
+                if pgrep -u "$UID_USUARIO" -f "clipb-paste daemon" >/dev/null 2>&1; then
+                    echo "  ClipB-Paste em execução — procure o ícone na bandeja"
+                else
+                    echo "  (não iniciou automaticamente; abra pelo menu de aplicativos)"
+                fi
+            else
+                echo "  Sessão gráfica não detectada — abra pelo menu de aplicativos."
+            fi
+        else
+            echo "  Sessão gráfica não detectada — abra pelo menu de aplicativos."
+        fi
+    fi
+fi
+
 echo
-echo "  Ou crie a regra udev manualmente:"
-echo "    echo 'KERNEL==\"uinput\", GROUP=\"input\", MODE=\"0660\", OPTIONS+=\"static_node=uinput\"' \\"
-echo "      | sudo tee /etc/udev/rules.d/60-uinput-clipb-paste.rules"
-echo "    sudo udevadm control --reload-rules && sudo udevadm trigger"
-echo "    sudo usermod -aG input \$USER   # depois faça logout/login"
-echo
-echo "  Inicie com:  clipb-paste daemon"
-echo "  Diagnóstico: clipb-paste doctor"
+echo "  Comandos úteis:"
+echo "    clipb-paste doctor     # diagnóstico"
+echo "    clipb-paste daemon     # iniciar manualmente"
 echo
 POSTINST
 chmod 755 "$BUILD/DEBIAN/postinst"
