@@ -29,5 +29,3 @@ upstream-*.tar.gz
 *.swp
 .DS_Store
 # Build
-build/
-dist/

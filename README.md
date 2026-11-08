@@ -9,52 +9,6 @@ da bandeja. O texto é digitado tecla por tecla.
 
 ---
 
-## Compatibilidade — o que foi testado e o que não
-
-Este projeto foi desenvolvido e testado **em uma máquina específica**:
-
-| Item | Ambiente testado |
-|---|---|
-| Distribuição | TUXEDO OS 24.04 (base Ubuntu 24.04) |
-| Desktop | KDE Plasma 6.6.6 / KWin 6.6.6 |
-| Sessão | Wayland |
-| Teclado | ABNT2 brasileiro (`br`) |
-| Python | 3.12 |
-
-### O que deve funcionar em outros lugares
-
-Essas partes usam interfaces padronizadas e não dependem desta máquina:
-
-- **D-Bus com o KWin** — `org.kde.KWin.Scripting`, API pública do compositor
-- **Bandeja** — StatusNotifierItem e dbusmenu, protocolos freedesktop usados por
-  todo aplicativo de bandeja
-- **Clipboard** — `wl-paste`, protocolo Wayland
-- **Digitação** — `/dev/uinput`, API do kernel, idêntica em qualquer Linux
-- **Interface** — GTK4
-
-As funções do KWin usadas no script (`workspace.windowAt`, `stackingOrder`,
-`raiseWindow`, `callDBus`, `readConfig`) existem desde o KWin 5.x.
-
-### O que é específico desta máquina
-
-1. **Mapa de teclas do ABNT2.** Os keycodes foram **medidos** neste teclado.
-   Outros layouts (`us`, `de`, `fr`…) têm posições diferentes: o app detecta o
-   layout e, quando **não** é `br`, digita só ASCII e **avisa** que acentos foram
-   perdidos. Não há mapa para outros layouts ainda.
-2. **Dead keys do `br`** para acentuação. Em `us` puro, acentos são pulados.
-3. **KWin 6.6.6.** Algumas descobertas mudaram entre versões (por exemplo,
-   `registerPointerFilter` não existe nesta). Versões muito diferentes podem
-   precisar de ajustes — o script é pequeno e o `clickpaste.js` é fácil de adaptar.
-4. **Plasma 6.** Não testado no Plasma 5.
-5. **Wayland.** Sessão X11 não é suportada.
-
-### Para outros layouts de teclado
-
-O caminho mais curto para suportar outro layout é usar o **ydotool** de uma versão
-nova (que consulta o XKB) ou adicionar um mapa de keycodes para o layout em
-`scripts/uinput-type.c`. A função `active_layout()` já detecta qual layout está
-ativo, então a estrutura para escolher o mapa certo já existe.
-
 ## Requisitos
 
 - KDE Plasma 6 com KWin (testado no 6.6.6 / Wayland)
@@ -66,84 +20,73 @@ sudo apt install python3-gi python3-dbus wl-clipboard build-essential
 
 ## Instalação
 
-> O repositório é **privado**: baixar o pacote ou clonar exige estar autenticado
-> no Gitea. Veja a seção [Downloads](#downloads) abaixo.
+Duas formas, mesma base:
 
-**Opção 1 — baixar o pacote da release:**
+### Opção 1 — pacote .deb (recomendado)
+
+Instala no sistema, o `apt` resolve as dependências, **libera a digitação** e
+**já inicia o app**:
 
 ```bash
-# autenticado: o download do anexo pede seu usuário/token
-wget --user=SEU_USUARIO --ask-password \
-  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.0.0/clipb-paste-1.0.0.tar.gz
-tar -xzf clipb-paste-1.0.0.tar.gz
-cd ClipB-Paste && ./install.sh --autostart
+sudo apt install ./clipb-paste_1.0.0_all.deb
 ```
 
-**Opção 2 — clonar o repositório** (para acompanhar o desenvolvimento):
+Pronto. Procure o ícone na bandeja.
+
+> O `./` no caminho é obrigatório: sem ele o `apt` procura um pacote nos
+> repositórios em vez de instalar o arquivo. Alternativa:
+> `sudo dpkg -i ./clipb-paste_1.0.0_all.deb`.
+
+Para remover: `sudo apt remove clipb-paste`
+
+### Opção 2 — script (por usuário, sem sudo para instalar)
 
 ```bash
-git clone https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste.git
+tar -xzf clipb-paste-1.0.0.tar.gz
 cd ClipB-Paste
 ./install.sh --autostart
 ```
 
-Pronto. O `install.sh` cuida de tudo: dependências checadas, código instalado em
-`~/.local/share/clipb-paste/`, executável em `~/.local/bin/clipb-paste`, ícones,
-entrada no menu e início automático. **No final ele já inicia o app** — procure o
-ícone na bandeja.
-
-Para instalar sem iniciar: `./install.sh --no-start`
-
-### Falta um passo para a digitação funcionar
-
-O Wayland bloqueia, por design, que aplicativos injetem teclas. O caminho é escrever
-no teclado virtual do kernel (`/dev/uinput`), que por padrão pertence a `root:root`
-com modo `0600`.
-
-Rode uma vez:
+Instala em `~/.local` (só para o seu usuário). **Falta um passo** para a digitação:
 
 ```bash
 sudo ./scripts/enable-uinput.sh
 ```
 
-Ele cria uma regra udev liberando o dispositivo para o grupo `input`, aplica na hora
-e **testa de verdade** — só declara sucesso se o dispositivo abrir. Se a digitação
-não funcionar, é este passo que falta; o `install.sh --status` avisa.
+Ele cria a regra udev do `/dev/uinput` — o Wayland bloqueia injeção de teclas por
+design, e esse dispositivo precisa de permissão. O script aplica na hora e **testa
+de verdade**: só declara sucesso se o dispositivo abrir.
 
-## Pacote .deb (instalação para o sistema)
+Para instalar sem iniciar: `./install.sh --no-start`
 
-Para instalar em **todo o sistema** (`/usr/bin`, disponível a qualquer usuário),
-gere e instale o `.deb`:
+### Qual escolher
+
+| | `.deb` | Script |
+|---|---|---|
+| Onde instala | `/usr` (todos os usuários) | `~/.local` (só você) |
+| Dependências | `apt` resolve | você instala à mão |
+| Digitação | já liberada | precisa `enable-uinput.sh` |
+| Inicia sozinho | sim | com `--autostart` |
+| Remove com | `apt remove clipb-paste` | `./install.sh --uninstall` |
+
+As configurações ficam no mesmo lugar nos dois casos (`~/.config/clipb-paste/`),
+então migrar entre eles preserva os ajustes.
+
+### Gerar o .deb
 
 ```bash
-./packaging/build-deb.sh
-sudo apt install ./dist/clipb-paste_1.0.0_all.deb
+./packaging/build-deb.sh      # gera dist/clipb-paste_<versão>_all.deb
 ```
 
-O `apt` resolve as dependências sozinho (`python3-gi`, `python3-dbus`,
-`wl-clipboard`).
+### Atualizar
 
-**Ao terminar, o app já sobe** — o `postinst` aproveita que está rodando como root
-para criar a regra udev do `/dev/uinput` (a única parte que precisa de
-privilégio) e lança o ClipB-Paste **como o usuário**, com o ambiente gráfico
-correto. Não é preciso rodar mais nada.
+```bash
+# .deb
+sudo apt install --reinstall ./clipb-paste_<versão>_all.deb
 
-> O `./` no caminho é obrigatório: sem ele o `apt` procura um pacote nos
-> repositórios em vez de instalar o arquivo. Alternativa sem essa pegadinha:
-> `sudo dpkg -i ./clipb-paste_1.0.0_all.deb`.
-
-### Diferença entre as duas formas
-
-| | `install.sh` | `.deb` |
-|---|---|---|
-| Onde instala | `~/.local` (só seu usuário) | `/usr` (todos os usuários) |
-| Precisa de sudo | só no `enable-uinput` | sim, para instalar |
-| Dependências | você instala à mão | `apt` resolve |
-| Remove com | `./install.sh --uninstall` | `sudo apt remove clipb-paste` |
-| Atualiza com | `git pull && ./install.sh` | novo `.deb` |
-
-As **configurações ficam no mesmo lugar** nos dois casos (`~/.config/clipb-paste/`),
-então migrar de um para o outro preserva os ajustes.
+# script
+git pull && ./install.sh
+```
 
 ## Comandos do instalador
 
@@ -166,12 +109,6 @@ Para apagar também:
 
 ```bash
 rm -rf ~/.config/clipb-paste ~/.local/state/clipb-paste
-```
-
-### Atualizar
-
-```bash
-cd ClipB-Paste && git pull && ./install.sh
 ```
 
 ## Uso
@@ -233,7 +170,7 @@ Se colou o texto errado ou é longo demais, há três formas de parar:
 
 1. **Clique no ícone** da bandeja (a mais rápida)
 2. Menu (botão direito) → **Parar digitação** — o item só aparece enquanto digita
-3. `clipb-paste --abort` no terminal
+3. `clipb-paste abort` no terminal
 
 O app interrompe **no meio do texto**: um texto de 280 caracteres para após os
 primeiros, não termina a sequência.
@@ -409,6 +346,52 @@ comentado no código onde foi corrigido.
     `(u revision, (ia{sv}av) layout)`; o `av` exige cada filho empacotado como variant.
 16. **Trocar o backend nas Configurações não tinha efeito.** O backend era escolhido só
     no arranque; agora é reescolhido ao salvar.
+
+## Compatibilidade — o que foi testado e o que não
+
+Este projeto foi desenvolvido e testado **em uma máquina específica**:
+
+| Item | Ambiente testado |
+|---|---|
+| Distribuição | TUXEDO OS 24.04 (base Ubuntu 24.04) |
+| Desktop | KDE Plasma 6.6.6 / KWin 6.6.6 |
+| Sessão | Wayland |
+| Teclado | ABNT2 brasileiro (`br`) |
+| Python | 3.12 |
+
+### O que deve funcionar em outros lugares
+
+Essas partes usam interfaces padronizadas e não dependem desta máquina:
+
+- **D-Bus com o KWin** — `org.kde.KWin.Scripting`, API pública do compositor
+- **Bandeja** — StatusNotifierItem e dbusmenu, protocolos freedesktop usados por
+  todo aplicativo de bandeja
+- **Clipboard** — `wl-paste`, protocolo Wayland
+- **Digitação** — `/dev/uinput`, API do kernel, idêntica em qualquer Linux
+- **Interface** — GTK4
+
+As funções do KWin usadas no script (`workspace.windowAt`, `stackingOrder`,
+`raiseWindow`, `callDBus`, `readConfig`) existem desde o KWin 5.x.
+
+### O que é específico desta máquina
+
+1. **Mapa de teclas do ABNT2.** Os keycodes foram **medidos** neste teclado.
+   Outros layouts (`us`, `de`, `fr`…) têm posições diferentes: o app detecta o
+   layout e, quando **não** é `br`, digita só ASCII e **avisa** que acentos foram
+   perdidos. Não há mapa para outros layouts ainda.
+2. **Dead keys do `br`** para acentuação. Em `us` puro, acentos são pulados.
+3. **KWin 6.6.6.** Algumas descobertas mudaram entre versões (por exemplo,
+   `registerPointerFilter` não existe nesta). Versões muito diferentes podem
+   precisar de ajustes — o script é pequeno e o `clickpaste.js` é fácil de adaptar.
+4. **Plasma 6.** Não testado no Plasma 5.
+5. **Wayland.** Sessão X11 não é suportada.
+
+### Para outros layouts de teclado
+
+O caminho mais curto para suportar outro layout é usar o **ydotool** de uma versão
+nova (que consulta o XKB) ou adicionar um mapa de keycodes para o layout em
+`scripts/uinput-type.c`. A função `active_layout()` já detecta qual layout está
+ativo, então a estrutura para escolher o mapa certo já existe.
 
 ## O que não dá para fazer no Wayland
 

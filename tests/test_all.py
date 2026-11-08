@@ -817,6 +817,49 @@ class TestVersao(unittest.TestCase):
         self.assertNotIn("VERSION=\"1.4.4\"", src)
 
 
+class TestDocumentacao(unittest.TestCase):
+    """O README já citou comandos que não existiam ('clipb-paste --abort').
+    Estes testes impedem que isso volte."""
+
+    README = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    def test_comandos_da_cli_existem(self):
+        import re
+
+        from clipbpaste.cli import build_parser
+
+        parser = build_parser()
+        comandos = set()
+        for action in parser._subparsers._group_actions:
+            comandos.update(action.choices)
+
+        # comandos citados como `clipb-paste <algo>` no README
+        citados = set(re.findall(r"clipb-paste ([a-z][a-z-]*)", self.README))
+        # ignora nomes de arquivo/pacote
+        citados -= {"daemon", "doctor", "windows", "target", "type", "settings",
+                    "abort", "enable-uinput", "kwin-install"}
+        for citado in re.findall(r"`clipb-paste ([a-z][a-z-]*)`", self.README):
+            self.assertIn(citado, comandos,
+                          f"README cita 'clipb-paste {citado}' que não existe")
+
+    def test_nao_usa_hifen_em_subcomando(self):
+        # '--abort' seria flag de opção, não subcomando
+        self.assertNotIn("clipb-paste --abort", self.README)
+
+    def test_scripts_citados_existem(self):
+        import re
+
+        for script in set(re.findall(r"\./(scripts/[a-z-]+\.sh|packaging/[a-z-]+\.sh|install\.sh)", self.README)):
+            self.assertTrue((ROOT / script).is_file(), f"README cita {script}, que não existe")
+
+    def test_versao_no_readme_bate_com_o_codigo(self):
+        from clipbpaste import __version__
+
+        # se o README cita um .deb, o nome deve ter a versão atual
+        if "clipb-paste_" in self.README:
+            self.assertIn(f"clipb-paste_{__version__}_all.deb", self.README)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 
