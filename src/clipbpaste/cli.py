@@ -202,6 +202,30 @@ def cmd_daemon(args) -> int:
     return Daemon(cfg).run()
 
 
+def cmd_abort(_args) -> int:
+    """Para a digitação em andamento (via D-Bus, falando com o daemon)."""
+    from . import kwin
+
+    if not kwin.is_kde():
+        print("Precisa do KDE para falar com o daemon.", file=sys.stderr)
+        return 2
+    try:
+        import dbus
+        import dbus.mainloop.glib
+
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        bus = dbus.SessionBus()
+        proxy = dbus.Interface(
+            bus.get_object(kwin.CP_SERVICE, kwin.CP_OBJECT, introspect=False), kwin.CP_IFACE
+        )
+        proxy.abort()
+        print("Digitação interrompida.")
+        return 0
+    except Exception as exc:
+        print(f"Não há digitação em andamento ({exc}).", file=sys.stderr)
+        return 1
+
+
 def cmd_settings(_args) -> int:
     from . import ui
 
@@ -246,6 +270,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("kwin-install", help="carrega o script no KWin")
     p.set_defaults(func=cmd_kwin_install)
+
+    p = sub.add_parser("abort", help="para uma digitação em andamento")
+    p.set_defaults(func=cmd_abort)
 
     p = sub.add_parser("settings", help="abre as configurações")
     p.set_defaults(func=cmd_settings)

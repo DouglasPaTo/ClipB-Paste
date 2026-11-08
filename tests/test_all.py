@@ -181,6 +181,14 @@ class TestCancelamento(unittest.TestCase):
         assinatura = inspect.signature(TypingBackend.type_text)
         self.assertIn("should_stop", assinatura.parameters)
 
+    def test_cli_tem_comando_abort(self):
+        """A terceira saída de emergência, para quando a interface não responde."""
+        from clipbpaste.cli import build_parser
+
+        parser = build_parser()
+        for action in parser._subparsers._group_actions:
+            self.assertIn("abort", action.choices)
+
     def test_backend_tem_stop(self):
         from clipbpaste.backends import TypingBackend
 
