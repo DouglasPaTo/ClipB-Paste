@@ -416,12 +416,24 @@ class TestMapaSenha(unittest.TestCase):
         trecho = self.FONTE[self.FONTE.index("case ':'"):]
         self.assertNotIn("return KEY_SEMICOLON", trecho[:80])
 
-    def test_nao_substitui_caractere_sem_tecla(self):
-        """Pular é correto; trocar por parecido corromperia senhas em silêncio."""
-        self.assertIn("sem tecla", self.FONTE)
-        self.assertIn("irrelevante_utf8", self.FONTE)
-        # não deve haver mapeamento de bullet/dash para teclas aproximadas
-        self.assertNotIn("KEY_KPPLUS", self.FONTE)
+    def test_tipograficos_tem_politica_clara(self):
+        """Três categorias: pular, substituir por equivalente, ou avisar.
+
+        Aspas curvas -> retas e travessão -> hífen PRESERVAM o significado do
+        texto. Já trocar o conteúdo de uma senha seria corrupção — por isso a
+        substituição só existe para pontuação tipográfica.
+        """
+        self.assertIn("eh_tipografico_puro", self.FONTE)     # ✓ • ... -> pular
+        self.assertIn("ascii_equivalente", self.FONTE)        # “ ” -> "
+        self.assertIn("sem equivalente", self.FONTE)          # emoji -> avisar
+
+    def test_substituicao_nao_mexe_em_letras(self):
+        """Só pontuação é substituída; letras nunca viram outra coisa."""
+        trecho = self.FONTE[self.FONTE.index("ascii_equivalente"):]
+        trecho = trecho[:trecho.index("static void tap")]
+        import re
+        for letra in re.findall(r'case 0x[0-9A-F]+:.*?return "([a-zA-Z0-9])"', trecho):
+            self.fail(f"substituição de letra/dígito não é permitida: {letra!r}")
 
 
 class TestAvisoInteligente(unittest.TestCase):

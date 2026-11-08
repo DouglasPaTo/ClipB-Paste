@@ -197,14 +197,44 @@ static const altgr_t ALTGR_CHARS[] = {
     {0xC2, 0xBA, 43},   /* º ordinal masc*/
 };
 
-/* Caracteres tipográficos que simplesmente pulamos SEM avisar:
-   em senhas e códigos não têm uso, e avisar a cada bullet polui. */
-static int irrelevante_utf8(int b1, int b2) {
-    if (b1 == 0xE2 && b2 == 0x80) return 1;   /* bullet, dashes, aspas curvas */
-    if (b1 == 0xE2 && b2 == 0x80) return 1;
-    if (b1 == 0xE2 && b2 == 0x80) return 1;
-    if (b1 >= 0xF0) return 2;                  /* emoji: 4 bytes */
+/* --- Caracteres sem tecla no ABNT2 -------------------------------------------
+ *
+ * Três categorias, abordagens diferentes:
+ *
+ *  1. TIPOGRÁFICO sem impacto (o texto continua legível sem ele):
+ *     • — “ ” ‘ ’ … ✓  -> pula em silêncio.
+ *     Ex.: "✓ dependências ok" vira " dependências ok". O ✓ é enfeite.
+ *
+ *  2. SUBSTITUÍVEL por equivalente ASCII que preserva o significado:
+ *     “ ” -> "   ‘ ’ -> '   – — -> -   … -> ...
+ *     Ex.: 'diz "oi"' com aspas curvas sai com aspas retas.
+ *
+ *  3. SEM EQUIVALENTE e que importa (emoji, símbolos exóticos):
+ *     pula e AVISA, para o app avisar o usuário.
+ */
+static int eh_tipografico_puro(int b1, int b2, int b3) {
+    if (b1 != 0xE2) return 0;
+    /* U+2700..U+27BF = dingbats (✓ ✔ ✗ …) */
+    if (b2 >= 0x9C && b2 <= 0x9E) return 1;
+    /* U+2022 bullet, U+2026 reticências */
+    if (b2 == 0x80 && (b3 == 0xA2 || b3 == 0xA6)) return 1;
     return 0;
+}
+
+/* Sequência ASCII equivalente, ou NULL se não houver. */
+static const char *ascii_equivalente(int b1, int b2, int b3, int *tamanho) {
+    *tamanho = 1;
+    if (b1 == 0xE2 && b2 == 0x80) {
+        switch (b3) {
+            case 0x9C: case 0x9D: case 0x9E: *tamanho = 1; return "\"";      /* “ ” „ */
+            case 0x98: case 0x99: case 0x9A: *tamanho = 1; return "'";       /* ‘ ’ ‚ */
+            case 0x93: case 0x94: *tamanho = 1; return "-";                  /* – — */
+            case 0xA6: *tamanho = 3; return "...";                           /* … */
+            case 0xA2: *tamanho = 1; return "*";                             /* • */
+        }
+    }
+    *tamanho = 0;
+    return NULL;
 }
 
 static int achar_altgr(unsigned char b2) {
@@ -219,6 +249,31 @@ static void tap_altgr(int code) {
     emit(EV_KEY, code, 1); syn(); sleep_ms(15);
     emit(EV_KEY, code, 0); syn(); sleep_ms(10);
     emit(EV_KEY, KEY_RIGHTALT, 0); syn(); sleep_ms(12);
+}
+
+static void tap(int code, int shift);
+static int keycode_for(unsigned char ch, int *shift);
+
+/* Emite uma tecla ASCII completa (com SYN e pausas), como o loop principal faz.
+   Usada também pelas substituições tipográficas. */
+static void digitar_ascii(unsigned char ch, long delay) {
+    if (ch == '`' || ch == '~' || ch == '^') {
+        /* dead key literal: cancela a composição com espaço */
+        tap(ch == '`' ? KEY_ABNT2_DEAD_ACUTE : KEY_ABNT2_DEAD_TILDE,
+            ch == '`' || ch == '^' ? 1 : 0);
+        sleep_ms(15);
+        emit(EV_KEY, KEY_SPACE, 1); syn(); sleep_ms(15);
+        emit(EV_KEY, KEY_SPACE, 0); syn();
+        return;
+    }
+    int sh = 0;
+    int code = keycode_for(ch, &sh);
+    if (code < 0) return;
+    if (sh) { emit(EV_KEY, KEY_LEFTSHIFT, 1); syn(); sleep_ms(20); }
+    emit(EV_KEY, code, 1); syn(); sleep_ms(sh ? 25 : 20);
+    emit(EV_KEY, code, 0); syn();
+    if (sh) { sleep_ms(15); emit(EV_KEY, KEY_LEFTSHIFT, 0); syn(); }
+    sleep_ms(delay / 2 + 15);
 }
 
 static void tap(int code, int shift) {
@@ -338,16 +393,28 @@ int main(int argc, char **argv) {
            Então pulamos e relatamos para o app avisar o usuário. */
         if (ch >= 0xE0) {
             int extra = (ch >= 0xF0) ? 3 : 2;
-            int b2 = 0;
+            int b2 = 0, b3 = 0;
             for (int i = 0; i < extra; i++) {
                 int b = fgetc(stdin);
                 if (b == EOF) break;
                 if (i == 0) b2 = b;
+                if (i == 1) b3 = b;
             }
-            /* Tipográficos (• — “ ” ‘ ’ …) e emoji: pula CALADO.
-               Não têm uso em senha/código e o aviso só atrapalha. */
-            if (irrelevante_utf8(ch, b2)) continue;
-            fprintf(stderr, "uinput-type: nao digita U+%02X%02X (sem tecla)\n",
+            /* 1) tipográfico puro: pula calado (✓ • ...) */
+            if (eh_tipografico_puro(ch, b2, b3)) continue;
+            /* 2) tem equivalente ASCII: digita o equivalente */
+            int tam = 0;
+            const char *sub = ascii_equivalente(ch, b2, b3, &tam);
+            if (sub) {
+                sleep_ms(15);
+                for (int i = 0; i < tam; i++) {
+                    digitar_ascii((unsigned char)sub[i], delay);
+                }
+                anterior = -1;
+                continue;
+            }
+            /* 3) emoji e afins: pula e avisa */
+            fprintf(stderr, "uinput-type: nao digita U+%02X%02X (sem equivalente)\n",
                     (unsigned char)ch, (unsigned char)b2);
             continue;
         }

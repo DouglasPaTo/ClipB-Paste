@@ -40,7 +40,7 @@ def config_path() -> Path:
 
 
 def log_path() -> Path:
-    return state_dir() / "clipbpaste.log"
+    return state_dir() / f"{APP_ID}.log"
 
 
 def pid_path() -> Path:

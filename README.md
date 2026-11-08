@@ -174,18 +174,26 @@ senha como `Pa$$w0rd!@# \[ç~`^` — idênticos ao original.
 | `ª` ordinal | evdev **27 + AltGr** |
 | `º` ordinal | evdev **43 + AltGr** |
 
-### Caracteres sem tecla no ABNT2
+### Caracteres sem tecla própria
 
-Alguns caracteres não têm tecla nenhuma no ABNT2, nem com AltGr:
+Alguns caracteres não têm tecla no ABNT2. O tratamento depende do que acontece
+com o sentido do texto:
 
-| Caractere | Comportamento |
-|---|---|
-| `•` bullet, `—` dash, `“ ” ‘ ’`, `…` | **pulado em silêncio** — não têm uso em senha/código |
-| `😀` emoji e outros não-latinos | pulado **com aviso** ao usuário |
+| Categoria | Exemplos | O que o app faz |
+|---|---|---|
+| **Substituível** (mesmo significado) | `“ ”` → `"`, `‘ ’` → `'`, `– —` → `-`, `…` → `...`, `•` → `*` | digita o equivalente ASCII |
+| **Tipográfico puro** (enfeite) | `✓` `✔` `✗` | pula em silêncio |
+| **Sem equivalente** | emoji, símbolos exóticos | pula e **avisa** |
 
-O helper **nunca substitui** um caractere por outro parecido: numa senha isso
-corromperia o valor sem você perceber. Ele pula e, quando é algo que pode
-importar, avisa.
+Exemplo real — copiar a saída do terminal:
+
+```
+copiado:  Ele disse “oi” e ‘tudo bem’ — ok...
+colado:   Ele disse "oi" e 'tudo bem' - ok...
+```
+
+O texto continua legível. A substituição nunca toca em letras ou dígitos: numa
+senha, trocar o conteúdo seria corromper o valor em silêncio.
 
 ### Teclas repetidas
 
