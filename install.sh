@@ -135,6 +135,18 @@ DESKTOP
     echo
 }
 
+# Verifica se o /dev/uinput está liberado; se não, avisa com o comando pronto.
+avisar_uinput() {
+    if [[ -w /dev/uinput ]]; then
+        return 0
+    fi
+    echo
+    warn "A digitação AINDA NÃO vai funcionar: /dev/uinput está sem permissão."
+    echo "     Rode uma vez (pede sudo):"
+    echo "       sudo $ROOT/scripts/enable-uinput.sh"
+    echo
+}
+
 install_icons() {
     local src="$ROOT/data/icons"
     [[ -f "$src/clipb-paste-32.png" ]] || { warn "ícones não encontrados em $src"; return 1; }
@@ -150,6 +162,42 @@ install_icons() {
     command -v gtk-update-icon-cache >/dev/null \
         && gtk-update-icon-cache -f -t "$ICON_DIR" >/dev/null 2>&1 || true
     green "ícones instalados"
+}
+
+# ---------------------------------------------------------------- executar
+do_start() {
+    # Se já estiver rodando, não abre outra instância (o app também se protege,
+    # mas avisar aqui deixa a mensagem clara).
+    if pgrep -f "clipb-paste daemon" >/dev/null 2>&1; then
+        warn "o ClipB-Paste já está rodando (pid $(pgrep -f 'clipb-paste daemon' | head -1))"
+        return 0
+    fi
+
+    # Sem sessão gráfica (ex.: instalando por SSH) não há bandeja para mostrar.
+    if [[ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]; then
+        warn "sem sessão gráfica — não vou iniciar agora"
+        echo "     Rode depois, na sessão do desktop:  clipb-paste daemon"
+        return 0
+    fi
+
+    blue "iniciando o ClipB-Paste"
+    # setsid + nohup: o app continua rodando depois que o instalador terminar.
+    nohup setsid "$BIN_DIR/clipb-paste" daemon >/dev/null 2>&1 < /dev/null &
+    disown 2>/dev/null || true
+
+    # Confirma que subiu de fato
+    local esperou=0
+    while [[ $esperou -lt 30 ]]; do
+        if pgrep -f "clipb-paste daemon" >/dev/null 2>&1; then
+            green "iniciado (pid $(pgrep -f 'clipb-paste daemon' | head -1)) — veja o ícone na bandeja"
+            return 0
+        fi
+        sleep 0.2
+        esperou=$((esperou + 1))
+    done
+    warn "o app não confirmou a inicialização"
+    echo "     Tente manualmente:  clipb-paste daemon"
+    echo "     E veja o que falta: clipb-paste doctor"
 }
 
 # ---------------------------------------------------------------- autostart
@@ -284,15 +332,18 @@ ClipB-Paste — instalador
 
 Uso: ./install.sh [opção]
 
-  (sem opção)          instala ou atualiza para o usuário atual
-  --autostart          instala e adiciona à inicialização da sessão
+  (sem opção)          instala ou atualiza e INICIA o app
+  --autostart          instala, adiciona à inicialização e inicia agora
+  --no-start           instala sem iniciar
+  --start              só inicia o app (sem instalar), se não estiver rodando
   --uninstall          remove o programa (mantém suas configurações)
   --remove-uinput      remove também a regra udev do /dev/uinput (pede sudo)
   --status             mostra o que está instalado
   -h, --help           esta ajuda
 
 Exemplos:
-  ./install.sh --autostart     # instalar e iniciar junto com o sistema
+  ./install.sh                 # instalar, iniciar e usar
+  ./install.sh --autostart     # instalar e iniciar também ao ligar o computador
   ./install.sh --status        # conferir se está tudo no lugar
 
 Depois de instalar:
@@ -303,14 +354,22 @@ EOF
 
 case "${1:-}" in
     "")               do_install
-                      echo "  Próximos passos:"
-                      echo "    clipb-paste daemon     # iniciar agora"
-                      echo "    ./install.sh --autostart   # iniciar junto com a sessão"
+                      avisar_uinput
+                      do_start
+                      if [[ ! -f "$AUTOSTART_DIR/$DESKTOP_FILE" ]]; then
+                          echo
+                          echo "  Para iniciar junto com a sessão:"
+                          echo "    ./install.sh --autostart"
+                      fi
                       ;;
     --autostart)      do_install
                       do_autostart_enable
+                      avisar_uinput
+                      do_start
                       ;;
     --no-autostart)   do_autostart_disable ;;
+    --start)          do_start ;;
+    --no-start)       do_install ;;
     --uninstall)      do_uninstall ;;
     --remove-uinput)  do_remove_uinput ;;
     --status)         do_status ;;

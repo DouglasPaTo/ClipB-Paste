@@ -30,9 +30,10 @@ cd ClipB-Paste
 
 Pronto. O `install.sh` cuida de tudo: dependências checadas, código instalado em
 `~/.local/share/clipb-paste/`, executável em `~/.local/bin/clipb-paste`, ícones,
-entrada no menu de aplicativos e início automático com a sessão.
+entrada no menu e início automático. **No final ele já inicia o app** — procure o
+ícone na bandeja.
 
-Depois disso, o app já está rodando — procure o ícone na bandeja.
+Para instalar sem iniciar: `./install.sh --no-start`
 
 ### Falta um passo para a digitação funcionar
 
@@ -53,13 +54,18 @@ não funcionar, é este passo que falta; o `install.sh --status` avisa.
 ## Comandos do instalador
 
 ```bash
-./install.sh                 # instalar ou atualizar
-./install.sh --autostart     # instalar e iniciar junto com a sessão
+./install.sh                 # instalar (ou atualizar) e iniciar
+./install.sh --autostart     # idem, e também inicia ao ligar o computador
+./install.sh --no-start      # instalar sem iniciar
+./install.sh --start         # só iniciar (se não estiver rodando)
 ./install.sh --status        # ver o que está instalado
 ./install.sh --uninstall     # remover (mantém suas configurações)
 ./install.sh --no-autostart  # só desativar o início automático
 ./install.sh --remove-uinput # remover também a regra udev (pede sudo)
 ```
+
+O instalador não abre uma segunda instância se o app já estiver rodando, e não
+tenta iniciar quando não há sessão gráfica (instalação por SSH, por exemplo).
 
 O `--uninstall` **preserva** suas configurações (`~/.config/clipb-paste/`) e logs.
 Para apagar também:

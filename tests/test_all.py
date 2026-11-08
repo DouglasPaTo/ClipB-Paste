@@ -492,6 +492,22 @@ class TestInstalador(unittest.TestCase):
         self.assertIn("check_deps", self.FONTE)
         self.assertIn("python3-gi", self.FONTE)
 
+    def test_instala_e_inicia(self):
+        """Instalar deve deixar o app rodando, sem abrir duas instâncias."""
+        self.assertIn("do_start", self.FONTE)
+        # não inicia se já houver um rodando
+        self.assertIn("já está rodando", self.FONTE)
+        # não tenta iniciar sem sessão gráfica
+        self.assertIn("WAYLAND_DISPLAY", self.FONTE)
+        self.assertIn("sem sessão gráfica", self.FONTE)
+
+    def test_permite_instalar_sem_iniciar(self):
+        self.assertIn("--no-start", self.FONTE)
+
+    def test_avisa_uinput_apos_instalar(self):
+        self.assertIn("avisar_uinput", self.FONTE)
+        self.assertIn("enable-uinput.sh", self.FONTE)
+
     def test_autostart_usa_desktop_entry(self):
         self.assertIn(".desktop", self.FONTE)
         self.assertIn("X-GNOME-Autostart-enabled=true", self.FONTE)
