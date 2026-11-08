@@ -20,7 +20,15 @@ sudo apt install python3-gi python3-dbus wl-clipboard build-essential
 
 ## Instalação
 
-Três comandos:
+**Opção 1 — baixar a versão pronta** (sem precisar de git):
+
+```bash
+wget https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
+tar -xzf clipb-paste-1.4.4.tar.gz
+cd ClipB-Paste && ./install.sh --autostart
+```
+
+**Opção 2 — clonar o repositório** (para acompanhar o desenvolvimento):
 
 ```bash
 git clone https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste.git
