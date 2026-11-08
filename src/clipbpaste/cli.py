@@ -294,7 +294,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="ClipB-Paste — digita o conteúdo do clipboard na janela que você apontar (Linux/KDE).",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="log detalhado")
-    parser.add_argument("--version", action="version", version="ClipB-Paste %(prog)s 1.4.4-linux")
+    from . import __version__
+
+    parser.add_argument(
+        "--version", action="version",
+        version=f"ClipB-Paste {__version__}",
+    )
 
     sub = parser.add_subparsers(dest="command")
 

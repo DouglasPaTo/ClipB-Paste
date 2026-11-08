@@ -777,6 +777,46 @@ class TestPacoteDeb(unittest.TestCase):
         self.assertIn("preservadas", src)
 
 
+class TestVersao(unittest.TestCase):
+    """A versão do ClipB-Paste é própria, não herdada do projeto de origem."""
+
+    def test_versao_e_propria(self):
+        from clipbpaste import __version__
+
+        # 1.4.4 era a versão do projeto que serviu de inspiração
+        self.assertNotEqual(__version__, "1.4.4",
+                            "a versão deve ser própria, não herdada")
+        self.assertRegex(__version__, r"^\d+\.\d+\.\d+$", "deve ser SemVer")
+
+    def test_cli_le_a_versao(self):
+        """Antes a CLI tinha '1.4.4-linux' hardcoded, ignorando __version__."""
+        from clipbpaste import __version__
+        from clipbpaste.cli import build_parser
+
+        parser = build_parser()
+        acoes = [a for a in parser._actions if "--version" in a.option_strings]
+        self.assertTrue(acoes)
+        # a versão exibida deve vir de __version__
+        stdout = __import__("io").StringIO()
+        import contextlib
+        import sys as _sys
+
+        try:
+            with contextlib.redirect_stdout(stdout):
+                parser.parse_args(["--version"])
+        except SystemExit:
+            pass
+        saida = stdout.getvalue()
+        self.assertIn(__version__, saida)
+        self.assertNotIn("1.4.4", saida)
+
+    def test_deb_usa_a_versao_do_codigo(self):
+        src = (ROOT / "packaging" / "build-deb.sh").read_text(encoding="utf-8")
+        # deve extrair de __init__.py, não ter número fixo
+        self.assertIn("__version__", src)
+        self.assertNotIn("VERSION=\"1.4.4\"", src)
+
+
 class TestArtefatos(unittest.TestCase):
     """Confere que os arquivos que o app carrega existem e são válidos."""
 

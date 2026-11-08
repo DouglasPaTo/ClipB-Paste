@@ -74,8 +74,8 @@ sudo apt install python3-gi python3-dbus wl-clipboard build-essential
 ```bash
 # autenticado: o download do anexo pede seu usuário/token
 wget --user=SEU_USUARIO --ask-password \
-  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
-tar -xzf clipb-paste-1.4.4.tar.gz
+  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.0.0/clipb-paste-1.0.0.tar.gz
+tar -xzf clipb-paste-1.0.0.tar.gz
 cd ClipB-Paste && ./install.sh --autostart
 ```
 
@@ -117,7 +117,7 @@ gere e instale o `.deb`:
 
 ```bash
 ./packaging/build-deb.sh
-sudo apt install ./dist/clipb-paste_1.4.4_all.deb
+sudo apt install ./dist/clipb-paste_1.0.0_all.deb
 ```
 
 O `apt` resolve as dependências sozinho (`python3-gi`, `python3-dbus`,
@@ -130,7 +130,7 @@ correto. Não é preciso rodar mais nada.
 
 > O `./` no caminho é obrigatório: sem ele o `apt` procura um pacote nos
 > repositórios em vez de instalar o arquivo. Alternativa sem essa pegadinha:
-> `sudo dpkg -i ./clipb-paste_1.4.4_all.deb`.
+> `sudo dpkg -i ./clipb-paste_1.0.0_all.deb`.
 
 ### Diferença entre as duas formas
 
@@ -487,8 +487,8 @@ Como o repositório é privado, para baixar o anexo é preciso estar autenticado
 # no navegador: faça login no Gitea e clique no anexo
 # no terminal:
 curl -L -H "Authorization: token SEU_TOKEN" \
-  -o clipb-paste-1.4.4.tar.gz \
-  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.4.4/clipb-paste-1.4.4.tar.gz
+  -o clipb-paste-1.0.0.tar.gz \
+  https://gitea.rdepaiva.ca/DougPaTo/ClipB-Paste/releases/download/v1.0.0/clipb-paste-1.0.0.tar.gz
 ```
 
 ## Onde o programa é instalado
@@ -516,29 +516,24 @@ preciso um pacote `.deb` — não feito ainda.
 
 Este projeto é distribuído sob a licença **BSD 3-Clause** — veja [LICENSE](LICENSE).
 
-### O que vem do projeto de origem, e o que não vem
+### Sobre a origem
 
-Vale registrar com transparência, porque a resposta muda o que a licença exige:
+O ClipB-Paste é uma implementação **independente**, inspirada no conceito do
+ClickPaste (Windows): "aponte o mouse para uma janela e o texto do clipboard é
+digitado ali".
 
-**Não é uma tradução do código original.** O projeto de origem tinha ~1.950 linhas
-de C#/WinForms; este tem ~3.300 linhas de Python/GTK4/D-Bus. Nenhuma classe ou
-função do original sobreviveu — a arquitetura é outra do começo ao fim (o original
-usava `SendInput`, hooks de mouse e `NotifyIcon`; aqui é KWin scripting, D-Bus e
-uinput).
+Essa ideia não é protegida por copyright. O código aqui é todo novo: o ClickPaste
+era C#/WinForms usando `SendInput`, hooks de mouse e `NotifyIcon`; este projeto é
+Python/GTK4/D-Bus/KWin scripting/uinput — nenhuma linha foi traduzida.
 
-**O que de fato se manteve:**
+O que se manteve do original:
 
-1. **A ideia e o comportamento** — "aponta o mouse e o texto do clipboard é
-   digitado ali". Ideias e fluxos de uso não são protegidos por copyright.
-2. **Nomes de configuração** (`KeyDelayMS` → `key_delay_ms`, etc.) — herdados da
-   lógica do original e mantidos por familiaridade.
-3. **O código-fonte original**, arquivado em `upstream-ClickPaste-1.4.4.tar.gz`.
+1. **A ideia e o comportamento** — não protegidos por copyright.
+2. **Nomes de configuração** (`KeyDelayMS` → `key_delay_ms`), mantidos por
+   familiaridade com quem já usava o ClickPaste.
 
-É o item 3 que torna o `LICENSE` necessário: enquanto o tarball original estiver no
-repositório, a licença dele precisa acompanhar. Se o tarball for removido (ficando
-apenas um link para o projeto de origem), a base para manter esta licença fica
-muito mais fina — restaria só a inspiração no comportamento, que não é objeto de
-licenciamento.
+A versão do ClipB-Paste é **própria** (`1.0.0`), sem relação com a numeração do
+projeto que serviu de inspiração.
 
 **Em resumo:** BSD 3-Clause é permissiva — permite usar, modificar, redistribuir e
 vender sem pagar nada. A única obrigação é manter o aviso de copyright e o texto da
