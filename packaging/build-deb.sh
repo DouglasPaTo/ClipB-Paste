@@ -44,7 +44,12 @@ if [[ "${1:-}" == "--check" ]]; then
     blue "validando $DEB_FILE"
     dpkg-deb --info "$DEB_FILE"
     echo
-    dpkg-deb --contents "$DEB_FILE" | head -30
+    # `| head` fecha o pipe e o tar do dpkg-deb recebe SIGPIPE (exit 2),
+    # que com `set -e` aborta o script. Capturamos a saída inteira primeiro.
+    CONTEUDO=$(dpkg-deb --contents "$DEB_FILE")
+    echo "$CONTEUDO" | head -30
+    echo "  ..."
+    echo "  total: $(echo "$CONTEUDO" | wc -l) arquivos"
     exit 0
 fi
 
